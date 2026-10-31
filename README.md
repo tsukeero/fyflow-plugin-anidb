@@ -14,3 +14,6 @@ pnpm install
 pnpm check   # typecheck, lint, test
 pnpm build   # compiles src/ to dist/, which is what npm ships
 ```
+
+`pnpm check` also runs the tests under Deno (`pnpm test:deno`), so it needs Deno 2 on the PATH. Tests talk only to
+a fake AniDB on localhost, never to the real one.

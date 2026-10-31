@@ -21,12 +21,14 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "test": "vitest run --passWithNoTests",
-    "check": "pnpm typecheck && pnpm lint && pnpm test"
+    "test": "vitest run",
+    "test:deno": "deno run -A node_modules/vitest/vitest.mjs run",
+    "check:dist": "pnpm build && node scripts/check-dist.ts",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:deno && pnpm check:dist"
   },
   "peerDependencies": {
     "fyflow-plugin-sdk": "^0.5.0"
