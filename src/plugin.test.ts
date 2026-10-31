@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import Anime from "./anime.worker.ts";
 import HashFile from "./hash-file.worker.ts";
 import IdentifyFile from "./identify-file.worker.ts";
+import MyListAdd from "./mylist-add.worker.ts";
+import MyListGet from "./mylist-get.worker.ts";
 import plugin from "./plugin.ts";
 
 type Schema = { properties?: Record<string, JsonSchema & { writeOnly?: boolean }> };
@@ -70,5 +72,34 @@ describe("the Plugin", () => {
     });
     const module = await import(new URL(worker?.url ?? "", plugin.base).href);
     expect(module.default).toBe(IdentifyFile);
+  });
+
+  it.each([
+    ["AniDBMyListGet", MyListGet],
+    ["AniDBMyListAdd", MyListAdd],
+  ])("contributes %s as an inline Session Worker", async (name, Worker) => {
+    const nodeType = plugin.nodeTypes?.[name];
+    expect(nodeType).toMatchObject({
+      inline: true,
+      profile: ["username", "password", "udpApiKey", "cacheDir"],
+    });
+    expect(nodeType?.pool).toEqual({ maxThreads: 1, maxConcurrentTasks: 100 });
+    expect(nodeType?.description).toEqual(expect.any(String));
+
+    const worker = plugin.workers?.[nodeType?.worker ?? ""];
+    const module = await import(new URL(worker?.url ?? "", plugin.base).href);
+    expect(module.default).toBe(Worker);
+  });
+
+  it("lets a Flow set AniDBMyListAdd's entry values and `edit`", () => {
+    const worker = plugin.workers?.[plugin.nodeTypes?.AniDBMyListAdd?.worker ?? ""];
+    expect(worker?.settingsSchema).toMatchObject({
+      properties: {
+        edit: { type: "boolean" },
+        state: { enum: expect.arrayContaining(["internal_storage", "deleted"]) },
+        viewed: { type: "boolean" },
+        viewdate: { type: "integer" },
+      },
+    });
   });
 });

@@ -2,6 +2,7 @@
 // Session. The result keeps the rest of the input, so later Nodes still know which file it was.
 import type { TaskEnvelope, Worker, WorkerContext } from "fyflow-plugin-sdk";
 import { DEFAULT_FILE_FIELDS, FIELDS, type FileField, type Part } from "./file-fields.ts";
+import { fileByHash } from "./file-ref.ts";
 import { unlessNotFound } from "./not-found.ts";
 import { type SessionFields, session } from "./session.ts";
 
@@ -63,19 +64,13 @@ export default class IdentifyFile implements Worker<Settings, Input> {
   }
 
   async run({ settings, input }: TaskEnvelope<Settings, Input>, context: WorkerContext) {
-    const { ed2k, size } = input ?? {};
-    if (typeof ed2k !== "string" || !/^[0-9a-f]{32}$/i.test(ed2k))
-      throw new Error("AniDBIdentifyFile needs `ed2k`, the file's 32-character ed2k hash, in its input");
-    if (typeof size !== "number" || !Number.isInteger(size) || size < 0)
-      throw new Error("AniDBIdentifyFile needs `size`, the file's size in bytes, in its input");
-    // The library keys its own Cache by the hash as given: one spelling keeps one entry.
-    const hash = ed2k.toLowerCase();
+    const { ed2k, size } = fileByHash("AniDBIdentifyFile", input);
     const fields = fieldsOf(settings);
     const answer = await session().request(
       this.#fields,
       ({ client, cache }) =>
-        unlessNotFound(cache, `FILE:s${size}|h${hash}`, () =>
-          client.file_by_hash(hash, size, [...ids, ...fields]),
+        unlessNotFound(cache, `FILE:s${size}|h${ed2k}`, () =>
+          client.file_by_hash(ed2k, size, [...ids, ...fields]),
         ),
       context,
     );

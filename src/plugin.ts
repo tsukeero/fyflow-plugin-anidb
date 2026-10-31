@@ -2,6 +2,7 @@
 // Session (ADR-0001); hashing, which never talks to AniDB, runs threaded.
 import { CPU_GROUP, DISK_GROUP, definePlugin } from "fyflow-plugin-sdk";
 import { FILE_FIELDS } from "./file-fields.ts";
+import { MYLIST_SETTINGS_SCHEMA } from "./mylist-settings.ts";
 import { SESSION_FIELDS } from "./session.ts";
 
 // Worker modules sit beside this one: TypeScript in the source, JavaScript once built.
@@ -47,6 +48,8 @@ export default definePlugin({
         additionalProperties: false,
       },
     },
+    myListGet: { url: `./mylist-get.worker.${moduleExtension}` },
+    myListAdd: { url: `./mylist-add.worker.${moduleExtension}`, settingsSchema: MYLIST_SETTINGS_SCHEMA },
   },
   nodeTypes: {
     AniDBAnime: {
@@ -64,6 +67,23 @@ export default definePlugin({
       profile: [...SESSION_FIELDS],
       icon: "search",
       description: "Identifies a hashed file on AniDB by its ed2k and size: its anime, episode and group.",
+    },
+    AniDBMyListGet: {
+      worker: "myListGet",
+      inline: true,
+      pool: SESSION_POOL,
+      profile: [...SESSION_FIELDS],
+      icon: "list",
+      description: "Gets a file's MyList entry, by fid or by ed2k and size; never from the Cache.",
+    },
+    AniDBMyListAdd: {
+      worker: "myListAdd",
+      inline: true,
+      pool: SESSION_POOL,
+      profile: [...SESSION_FIELDS],
+      icon: "check",
+      description:
+        "Adds a file to MyList, by fid or by ed2k and size, leaving an entry already there as it is unless `edit` is set.",
     },
     AniDBHashFile: {
       worker: "hashFile",
