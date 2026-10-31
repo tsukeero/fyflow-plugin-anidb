@@ -1,11 +1,13 @@
 // The Session: the one AniDB UDP connection a Host process holds, borrowed by every Session Worker (ADR-0001). It
 // lives on `globalThis`, so every copy of this module (one per Plugin entry stamp, after a Reload) finds the same one.
 // Tasks wait their turn in its Request queue, sent one at a time; the library spaces them at AniDB's pace.
+import { isAbsolute } from "node:path";
 import { AnidbUDPClient } from "anidb-udp-client";
 import type { WorkerContext } from "fyflow-plugin-sdk";
+import { Cache } from "./cache.ts";
 
 /** The Profile's start-up fields the Session is opened with. */
-export const SESSION_FIELDS = ["username", "password", "udpApiKey"] as const;
+export const SESSION_FIELDS = ["username", "password", "udpApiKey", "cacheDir"] as const;
 
 export type SessionFields = Partial<Record<(typeof SESSION_FIELDS)[number], string>>;
 
@@ -15,7 +17,13 @@ const SPACING_MS = 4_000;
 export interface SessionOptions {
   /** How long the Session stays logged in with no requests. */
   idleMs?: number;
+  /** The clock the Cache keeps time by. */
+  now?: () => number;
 }
+
+const NOT_PERSISTED = "AniDB answers will not persist: set `cacheDir` on this Task's Profile";
+/** Whether the Host's log has been told answers will not persist: once per process is enough. */
+let warnedNotPersisted = false;
 
 /** A Task's request, waiting in the Request queue or being sent. */
 interface QueuedRequest {
@@ -35,6 +43,14 @@ const required = (fields: SessionFields, name: "username" | "password") => {
   return value;
 };
 
+const cacheDirOf = ({ cacheDir }: SessionFields) => {
+  if (cacheDir !== undefined && !isAbsolute(cacheDir))
+    throw new Error(
+      `The Cache directory ${cacheDir} is not an absolute path: fix \`cacheDir\` on this Task's Profile`,
+    );
+  return cacheDir;
+};
+
 /** Progress is the Host's to show; a Task that cannot take it must not stall the queue. */
 const tell = (context: WorkerContext, message: string) => {
   try {
@@ -44,20 +60,24 @@ const tell = (context: WorkerContext, message: string) => {
 
 class Session {
   readonly #idleMs: number;
+  readonly #now: (() => number) | undefined;
   /** The login, pending or done; undefined while logged out. */
   #login: Promise<AnidbUDPClient> | undefined;
   /** The logged-in client, once the login is done. */
   #client: AnidbUDPClient | undefined;
   /** The Session account. */
   #account: string | undefined;
+  /** Whether the login's Cache is in a Cache directory, so its answers persist. */
+  #persisted = false;
   /** The last logout, which a new login waits for, so two sessions never overlap. */
   #loggingOut: Promise<void> = Promise.resolve();
   readonly #queue: QueuedRequest[] = [];
   #sending: QueuedRequest | undefined;
   #idle: ReturnType<typeof setTimeout> | undefined;
 
-  constructor({ idleMs = 10 * 60_000 }: SessionOptions = {}) {
+  constructor({ idleMs = 10 * 60_000, now }: SessionOptions = {}) {
     this.#idleMs = idleMs;
+    this.#now = now;
   }
 
   /**
@@ -71,6 +91,7 @@ class Session {
   ): Promise<T> {
     required(fields, "username");
     required(fields, "password");
+    cacheDirOf(fields);
     context.signal.throwIfAborted();
     return new Promise<T>((resolve, reject) => {
       const request: QueuedRequest = {
@@ -114,6 +135,7 @@ class Session {
     try {
       const login = this.#connect(request.fields);
       tell(request.context, `Asking AniDB as ${this.#account}`);
+      if (!this.#persisted) tell(request.context, NOT_PERSISTED);
       request.resolve(await request.call(await login));
     } catch (error) {
       request.reject(error);
@@ -149,6 +171,7 @@ class Session {
       const login = this.#loggingOut.then(() => this.#logIn(fields));
       this.#login = login;
       this.#account = fields.username;
+      this.#persisted = fields.cacheDir !== undefined;
       login.catch(() => {
         if (this.#login === login) this.#loggedOut();
       });
@@ -156,14 +179,33 @@ class Session {
     return this.#login;
   }
 
-  async #logIn({ username, password, udpApiKey }: SessionFields) {
+  async #logIn({ username, password, udpApiKey, cacheDir }: SessionFields) {
+    let cache: Cache;
+    try {
+      cache = new Cache(cacheDir, this.#now);
+    } catch (error) {
+      throw new Error(
+        `Cannot keep the Cache in ${cacheDir}: ${(error as Error).message}: fix \`cacheDir\` on this Task's Profile`,
+      );
+    }
+    if (cacheDir === undefined && !warnedNotPersisted) {
+      warnedNotPersisted = true;
+      console.warn(`fyflow-plugin-anidb: ${NOT_PERSISTED}`);
+    }
     // Never the library's default cache: it writes into the working directory (ADR-0004).
-    const client = new AnidbUDPClient(undefined, { cache: false, logger: false });
-    // The library disconnects by itself on a fatal reply: the next request then logs in again.
+    const client = new AnidbUDPClient(undefined, { cache, logger: false });
+    // The library disconnects by itself on a fatal reply: the next request then logs in again. The login's Cache
+    // closes only once its client is done with it.
     client.on(AnidbUDPClient.EVENTS.DISCONNECT, () => {
+      cache.close();
       if (this.#client === client) this.#loggedOut();
     });
-    await client.connect(username, password, udpApiKey);
+    try {
+      await client.connect(username, password, udpApiKey);
+    } catch (error) {
+      cache.close();
+      throw error;
+    }
     this.#client = client;
     return client;
   }

@@ -22,6 +22,8 @@ export default definePlugin({
         password: { type: "string", minLength: 1, writeOnly: true },
         // The account's UDP API Key, from its AniDB profile: with one, the Session is encrypted.
         udpApiKey: { type: "string", minLength: 1, writeOnly: true },
+        // Where AniDB's answers are kept, an absolute path: without one they last only as long as the Session.
+        cacheDir: { type: "string", minLength: 1 },
         // The folders AniDBHashFile may read under (ADR-0005): a grant only a Profile may set.
         roots: { type: "array", items: { type: "string", minLength: 1 } },
       },

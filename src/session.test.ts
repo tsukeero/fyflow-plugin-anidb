@@ -1,12 +1,21 @@
 // The Session as Tasks see it: every Session Worker borrows it, whatever its Node Type or Profile, and waits its
 // turn in the Request queue (ADR-0001).
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { TaskEnvelope, WorkerContext } from "fyflow-plugin-sdk";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type FakeAniDB, startFakeAniDB } from "../test/fake-anidb.ts";
 import Anime from "./anime.worker.ts";
 import { resetSession, session } from "./session.ts";
 
-const alice = { username: "alice", password: "secret" };
+let cacheDir: string;
+let alice: { username: string; password: string; cacheDir: string };
+
+beforeEach(async () => {
+  cacheDir = await mkdtemp(join(tmpdir(), "anidb-cache-"));
+  alice = { username: "alice", password: "secret", cacheDir };
+});
 const task = (aid: number): TaskEnvelope<object, { aid: number }> => ({
   settings: { profile: {} },
   input: { aid },
@@ -45,6 +54,7 @@ afterEach(async () => {
   await resetSession();
   await anidb?.close();
   anidb = undefined;
+  await rm(cacheDir, { recursive: true, force: true });
 });
 
 describe("the Session", () => {
@@ -221,4 +231,68 @@ describe("the Session", () => {
     expect(await queued).toContain("shut down");
     await running;
   }, 20_000);
+});
+
+describe("the Cache directory", () => {
+  it("keeps answers across Sessions: asked again, they come from the Cache, not AniDB", async () => {
+    anidb = await startFakeAniDB({ handlers: { ANIME: anime } });
+    await new Anime(alice).run(task(1), context().value);
+
+    await resetSession();
+    const again = await new Anime(alice).run(task(1), context().value);
+
+    expect(again.anime.aid).toBe(1);
+    // A cached answer still costs a login: the library reads its cache only through a logged-in client.
+    expect(anidb.commands()).toEqual(["AUTH", "ANIME", "LOGOUT", "AUTH"]);
+  }, 20_000);
+
+  it("asks AniDB again once an answer's lifetime has passed", async () => {
+    const clock = { now: Date.now() };
+    await resetSession({ now: () => clock.now });
+    anidb = await startFakeAniDB({ handlers: { ANIME: anime } });
+    const worker = new Anime(alice);
+    await worker.run(task(1), context().value);
+
+    clock.now += 7 * 24 * 60 * 60_000;
+    await worker.run(task(1), context().value);
+
+    expect(anidb.commands()).toEqual(["AUTH", "ANIME", "ANIME"]);
+  }, 20_000);
+
+  it("without one, keeps answers in memory for the Session's life, saying they will not persist", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    anidb = await startFakeAniDB({ handlers: { ANIME: anime } });
+    const worker = new Anime({ username: "alice", password: "secret" });
+    const first = context();
+
+    await worker.run(task(1), first.value);
+    await worker.run(task(1), context().value);
+
+    expect(anidb.commands()).toEqual(["AUTH", "ANIME"]);
+    expect(first.messages).toContain("AniDB answers will not persist: set `cacheDir` on this Task's Profile");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("will not persist"));
+    warn.mockRestore();
+  }, 20_000);
+
+  it("fails the Task when it is not an absolute path", async () => {
+    anidb = await startFakeAniDB({ handlers: { ANIME: anime } });
+
+    const result = settle(new Anime({ ...alice, cacheDir: "cache" }).run(task(1), context().value));
+
+    expect(await result).toContain("`cacheDir`");
+    expect(anidb.received).toEqual([]);
+  });
+
+  it("fails the Task when it cannot be created", async () => {
+    anidb = await startFakeAniDB({ handlers: { ANIME: anime } });
+    const file = join(cacheDir, "a-file");
+    await writeFile(file, "");
+
+    const result = settle(
+      new Anime({ ...alice, cacheDir: join(file, "cache") }).run(task(1), context().value),
+    );
+
+    expect(await result).toContain("`cacheDir`");
+    expect(anidb.received).toEqual([]);
+  });
 });

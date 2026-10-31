@@ -17,9 +17,15 @@ describe("the Plugin", () => {
     expect(plugin.profile?.startup).toEqual(expect.arrayContaining(["username", "password", "udpApiKey"]));
   });
 
+  it("sets the Cache directory on the Profile, read when the Session logs in", () => {
+    expect(property("cacheDir")).toMatchObject({ type: "string" });
+    expect(property("cacheDir")?.writeOnly).toBeUndefined();
+    expect(plugin.profile?.startup).toContain("cacheDir");
+  });
+
   it("contributes AniDBAnime as an inline Session Worker taking the account fields", async () => {
     const anime = plugin.nodeTypes?.AniDBAnime;
-    expect(anime).toMatchObject({ inline: true, profile: ["username", "password", "udpApiKey"] });
+    expect(anime).toMatchObject({ inline: true, profile: ["username", "password", "udpApiKey", "cacheDir"] });
     // One instance per pool, holding every waiting Task inside run() so each can say why it waits.
     expect(anime?.pool).toEqual({ maxThreads: 1, maxConcurrentTasks: 100 });
     expect(anime?.description).toEqual(expect.any(String));
