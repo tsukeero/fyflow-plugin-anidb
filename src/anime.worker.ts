@@ -1,28 +1,52 @@
-// The `AniDBAnime` Worker: looks an anime up on AniDB through the Session.
+// The `AniDBAnime` Worker: looks an anime up on AniDB through the Session, by its aid or any of its titles. The
+// result keeps the rest of the input.
 import type { TaskEnvelope, Worker, WorkerContext } from "fyflow-plugin-sdk";
+import { ANIME_FIELDS, chosenFields, DEFAULT_ANIME_FIELDS } from "./fields.ts";
+import { isId } from "./ids.ts";
+import { unlessNotFound } from "./not-found.ts";
 import { type SessionFields, session } from "./session.ts";
 
-/** The anime fields a Task gets back. */
-const FIELDS = ["year", "type", "romanji_name", "english_name", "episodes"] as const;
+type Settings = { fields?: string[] };
+type Input = { aid?: unknown; title?: unknown; [field: string]: unknown } | null | undefined;
 
-type Input = { aid?: unknown };
+type AnimeRef = { aid: number } | { title: string };
 
-export default class Anime implements Worker<object, Input> {
+/** The anime by its aid when the input has one, otherwise by its title. */
+function animeOf(input: Input): AnimeRef {
+  const { aid, title } = input ?? {};
+  if (isId(aid)) return { aid };
+  // anidb-udp-client keys its Cache by aid or title alike: an all-digit title would read that aid's record.
+  if (aid === undefined && typeof title === "string" && /^\d+$/.test(title))
+    throw new Error(
+      `AniDBAnime cannot look up the title ${title}, which reads as an aid: give its \`aid\` instead`,
+    );
+  if (aid === undefined && typeof title === "string" && title !== "") return { title };
+  throw new Error("AniDBAnime needs `aid`, or `title`, in its input: the anime's id, or any of its titles");
+}
+
+export default class Anime implements Worker<Settings, Input> {
   readonly #fields: SessionFields;
 
   constructor(fields: SessionFields) {
     this.#fields = fields;
   }
 
-  async run({ input }: TaskEnvelope<object, Input>, context: WorkerContext) {
-    const aid = input?.aid;
-    if (typeof aid !== "number" || !Number.isInteger(aid) || aid < 1)
-      throw new Error("AniDBAnime needs `aid`, a positive whole number, in its input");
-    const anime = await session().request(
+  async run({ settings, input }: TaskEnvelope<Settings, Input>, context: WorkerContext) {
+    const ref = animeOf(input);
+    const anime = "aid" in ref ? ref.aid : ref.title;
+    // Tagged, so a title that is a number, such as 86, is never taken for an aid.
+    const key = "aid" in ref ? `ANIME:aid=${ref.aid}` : `ANIME:title=${ref.title}`;
+    const fields = chosenFields("AniDBAnime", settings.fields, ANIME_FIELDS, DEFAULT_ANIME_FIELDS);
+    const answer = await session().request(
       this.#fields,
-      ({ client }) => client.anime(aid, [...FIELDS]),
+      ({ client, cache }) => unlessNotFound(cache, key, () => client.anime(anime, fields)),
       context,
     );
-    return { found: true, anime };
+    if (answer === undefined) return { ...input, found: false };
+    // Only the fields asked for: an answer from the Cache may hold more, kept from a wider request.
+    const chosen = Object.fromEntries(
+      fields.map((field) => [field, (answer as Record<string, unknown>)[field]]),
+    );
+    return { ...input, found: true, anime: { aid: answer.aid, ...chosen } };
   }
 }

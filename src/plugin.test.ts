@@ -1,6 +1,7 @@
 import type { JsonSchema } from "fyflow-plugin-sdk";
 import { describe, expect, it } from "vitest";
 import Anime from "./anime.worker.ts";
+import Episode from "./episode.worker.ts";
 import HashFile from "./hash-file.worker.ts";
 import IdentifyFile from "./identify-file.worker.ts";
 import MyListAdd from "./mylist-add.worker.ts";
@@ -77,6 +78,7 @@ describe("the Plugin", () => {
   it.each([
     ["AniDBMyListGet", MyListGet],
     ["AniDBMyListAdd", MyListAdd],
+    ["AniDBEpisode", Episode],
   ])("contributes %s as an inline Session Worker", async (name, Worker) => {
     const nodeType = plugin.nodeTypes?.[name];
     expect(nodeType).toMatchObject({
@@ -99,6 +101,15 @@ describe("the Plugin", () => {
         state: { enum: expect.arrayContaining(["internal_storage", "deleted"]) },
         viewed: { type: "boolean" },
         viewdate: { type: "integer" },
+      },
+    });
+  });
+
+  it("lets a Flow choose AniDBAnime's fields", () => {
+    const worker = plugin.workers?.[plugin.nodeTypes?.AniDBAnime?.worker ?? ""];
+    expect(worker?.settingsSchema).toMatchObject({
+      properties: {
+        fields: { type: "array", items: { enum: expect.arrayContaining(["romanji_name", "episodes"]) } },
       },
     });
   });

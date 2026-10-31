@@ -1,4 +1,5 @@
 // How a Task's input names a file on AniDB: by its fid, or by the ed2k and size AniDBHashFile gives.
+import { isId } from "./ids.ts";
 
 export type FileByHash = { ed2k: string; size: number };
 export type FileRef = { fid: number } | FileByHash;
@@ -19,7 +20,7 @@ export function fileByHash(nodeType: string, input: Input): FileByHash {
 export function fileRef(nodeType: string, input: Input): FileRef {
   const fid = input?.fid;
   if (fid === undefined) return fileByHash(nodeType, input);
-  if (typeof fid !== "number" || !Number.isInteger(fid) || fid < 1)
+  if (!isId(fid))
     throw new Error(
       `${nodeType} needs \`fid\`, a positive whole number, or \`ed2k\` and \`size\`, in its input`,
     );

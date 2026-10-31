@@ -1,7 +1,7 @@
 // The Plugin's entry. Every Node Type talking to AniDB runs on an inline Session Worker borrowing the Host's one
 // Session (ADR-0001); hashing, which never talks to AniDB, runs threaded.
 import { CPU_GROUP, DISK_GROUP, definePlugin } from "fyflow-plugin-sdk";
-import { FILE_FIELDS } from "./file-fields.ts";
+import { ANIME_FIELDS, FILE_FIELDS, fieldsSchema } from "./fields.ts";
 import { MYLIST_SETTINGS_SCHEMA } from "./mylist-settings.ts";
 import { SESSION_FIELDS } from "./session.ts";
 
@@ -35,18 +35,12 @@ export default definePlugin({
     profileOnly: ["roots"],
   },
   workers: {
-    anime: { url: `./anime.worker.${moduleExtension}` },
+    anime: { url: `./anime.worker.${moduleExtension}`, settingsSchema: fieldsSchema(ANIME_FIELDS) },
+    episode: { url: `./episode.worker.${moduleExtension}` },
     hashFile: { url: `./hash-file.worker.${moduleExtension}` },
     identifyFile: {
       url: `./identify-file.worker.${moduleExtension}`,
-      settingsSchema: {
-        type: "object",
-        properties: {
-          // The file fields to get back, as anidb-udp-client names them; the aid, eid and gid always come back.
-          fields: { type: "array", items: { type: "string", enum: [...FILE_FIELDS] }, minItems: 1 },
-        },
-        additionalProperties: false,
-      },
+      settingsSchema: fieldsSchema(FILE_FIELDS),
     },
     myListGet: { url: `./mylist-get.worker.${moduleExtension}` },
     myListAdd: { url: `./mylist-add.worker.${moduleExtension}`, settingsSchema: MYLIST_SETTINGS_SCHEMA },
@@ -58,7 +52,15 @@ export default definePlugin({
       pool: SESSION_POOL,
       profile: [...SESSION_FIELDS],
       icon: "search",
-      description: "Looks an anime up on AniDB by its aid.",
+      description: "Looks an anime up on AniDB by its aid or any of its titles.",
+    },
+    AniDBEpisode: {
+      worker: "episode",
+      inline: true,
+      pool: SESSION_POOL,
+      profile: [...SESSION_FIELDS],
+      icon: "play",
+      description: "Looks an episode up on AniDB by its eid, or by its anime's aid and its episode number.",
     },
     AniDBIdentifyFile: {
       worker: "identifyFile",

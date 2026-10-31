@@ -96,7 +96,7 @@ describe("the Session", () => {
       worker.run(task(2), context().value),
     ]);
 
-    expect(results.map((r) => r.anime.aid)).toEqual([1, 2]);
+    expect(results).toMatchObject([{ anime: { aid: 1 } }, { anime: { aid: 2 } }]);
     expect(anidb.received.filter((r) => r.command === "ANIME").map((r) => r.params.aid)).toEqual(["1", "2"]);
     expect((sentAt[1] ?? 0) - (sentAt[0] ?? 0)).toBeGreaterThanOrEqual(3_900);
   }, 20_000);
@@ -166,7 +166,7 @@ describe("the Session", () => {
 
     expect(await elapsed(out)).toBeLessThan(100);
     expect(await out).toBe("Cancelled");
-    expect((await next).anime.aid).toBe(2);
+    expect(await next).toMatchObject({ anime: { aid: 2 } });
   }, 30_000);
 
   it("logs out once no Task has asked anything for its idle time, and logs in again for the next", async () => {
@@ -193,7 +193,7 @@ describe("the Session", () => {
     const worker = new Anime(alice);
 
     expect(await settle(worker.run(task(1), context().value))).toContain("LOGIN_FAILED");
-    expect((await worker.run(task(2), context().value)).anime.aid).toBe(2);
+    expect(await worker.run(task(2), context().value)).toMatchObject({ anime: { aid: 2 } });
   }, 20_000);
 
   it("finishes logging out before a request arriving meanwhile logs in again", async () => {
@@ -241,7 +241,7 @@ describe("the Cache directory", () => {
     await resetSession();
     const again = await new Anime(alice).run(task(1), context().value);
 
-    expect(again.anime.aid).toBe(1);
+    expect(again).toMatchObject({ anime: { aid: 1 } });
     // A cached answer still costs a login: the library reads its cache only through a logged-in client.
     expect(anidb.commands()).toEqual(["AUTH", "ANIME", "LOGOUT", "AUTH"]);
   }, 20_000);
