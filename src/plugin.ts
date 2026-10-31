@@ -37,6 +37,7 @@ export default definePlugin({
   workers: {
     anime: { url: `./anime.worker.${moduleExtension}`, settingsSchema: fieldsSchema(ANIME_FIELDS) },
     episode: { url: `./episode.worker.${moduleExtension}` },
+    status: { url: `./status.worker.${moduleExtension}` },
     hashFile: { url: `./hash-file.worker.${moduleExtension}` },
     identifyFile: {
       url: `./identify-file.worker.${moduleExtension}`,
@@ -86,6 +87,16 @@ export default definePlugin({
       icon: "check",
       description:
         "Adds a file to MyList, by fid or by ed2k and size, leaving an entry already there as it is unless `edit` is set.",
+    },
+    AniDBStatus: {
+      worker: "status",
+      // It never waits: the default pool serves it.
+      inline: true,
+      // Only the Cache directory, for a block kept there: never the account's secrets.
+      profile: ["cacheDir"],
+      icon: "activity",
+      description:
+        "Reports the AniDB Session: its state, account, queue, next send time and any Circuit breaker block.",
     },
     AniDBHashFile: {
       worker: "hashFile",

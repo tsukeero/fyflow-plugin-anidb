@@ -7,6 +7,7 @@ import IdentifyFile from "./identify-file.worker.ts";
 import MyListAdd from "./mylist-add.worker.ts";
 import MyListGet from "./mylist-get.worker.ts";
 import plugin from "./plugin.ts";
+import Status from "./status.worker.ts";
 
 type Schema = { properties?: Record<string, JsonSchema & { writeOnly?: boolean }> };
 const property = (name: string) => (plugin.profile?.schema as Schema | undefined)?.properties?.[name];
@@ -117,5 +118,15 @@ describe("the Plugin", () => {
   it("declares no default retryPolicy: retrying AniDB is the Session's, never the Host's", () => {
     for (const nodeType of Object.values(plugin.nodeTypes ?? {}))
       expect(nodeType).not.toHaveProperty("retryPolicy");
+  });
+
+  it("contributes AniDBStatus as an inline Session Worker taking only the Cache directory, never a secret", async () => {
+    const status = plugin.nodeTypes?.AniDBStatus;
+    expect(status).toMatchObject({ inline: true, profile: ["cacheDir"] });
+    expect(status?.description).toEqual(expect.any(String));
+
+    const worker = plugin.workers?.[status?.worker ?? ""];
+    const module = await import(new URL(worker?.url ?? "", plugin.base).href);
+    expect(module.default).toBe(Status);
   });
 });

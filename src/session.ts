@@ -38,6 +38,22 @@ export interface Connection {
   cache: Cache;
 }
 
+/** What the Session reports about itself, holding no secret. Times are ISO 8601. */
+export interface SessionSnapshot {
+  state: "disconnected" | "connecting" | "connected" | "blocked";
+  /** The Session account, while a Profile holds the Session. */
+  account: string | null;
+  /** How many requests wait in the Request queue, not counting the one being sent. */
+  queued: number;
+  /**
+   * About when the Session may next send a packet, by AniDB's spacing after its last request or session, or the block.
+   * An estimate: the library does not say when it sent, nor count its own keep-alive pings.
+   */
+  nextSendAt: string;
+  /** When the Circuit breaker's block lifts, while there is one. */
+  blockedUntil: string | null;
+}
+
 /** A Task's request, waiting in the Request queue or being sent. */
 interface QueuedRequest {
   fields: SessionFields;
@@ -98,6 +114,8 @@ class Session {
   #heldLoggedIn = false;
   /** When the Session idles out, while no Task is using it. */
   #idleAt: number | undefined;
+  /** When AniDB last answered, or failed to answer, a request, by the real clock the library paces by. */
+  #answeredAt = Number.NEGATIVE_INFINITY;
   /** Counts shutdowns: a request still out from before one never logs in again. */
   #generation = 0;
   /** When the last client disconnected, by the real clock the library paces by. */
@@ -186,6 +204,34 @@ class Session {
   }
 
   /**
+   * The Session snapshot, taking in any block kept in `cacheDir`. It never connects, queues or sends: a status asked
+   * for while AniDB is slow or blocked answers at once.
+   */
+  snapshot(cacheDir: string | undefined): SessionSnapshot {
+    const blockedUntil = this.#breaker.blockedUntil(
+      cacheDirOf(cacheDir === undefined ? {} : { cacheDir }) ?? this.#holder?.cacheDir,
+    );
+    const state =
+      blockedUntil !== undefined
+        ? "blocked"
+        : this.#client !== undefined
+          ? "connected"
+          : this.#login !== undefined
+            ? "connecting"
+            : "disconnected";
+    // While a request is out, the next goes at least AniDB's spacing after its answer.
+    const after = this.#sending !== undefined ? Date.now() : Math.max(this.#answeredAt, this.#disconnectedAt);
+    const nextSendAt = blockedUntil ?? Math.max(Date.now(), after + SPACING_MS);
+    return {
+      state,
+      account: this.#holder?.username ?? null,
+      queued: this.#queue.length,
+      nextSendAt: new Date(nextSendAt).toISOString(),
+      blockedUntil: blockedUntil === undefined ? null : new Date(blockedUntil).toISOString(),
+    };
+  }
+
+  /**
    * Takes the Session for `fields`' Profile, or fails if another Profile's fields hold it (ADR-0002): two accounts
    * taking turns would juggle sessions into a ban. Names the fields that differ, never their values.
    */
@@ -230,6 +276,8 @@ class Session {
       if (!expired(error) || generation !== this.#generation) throw error;
       // The library disconnected on it: this logs in afresh.
       return await request.call(await this.#connect(request.fields));
+    } finally {
+      this.#answeredAt = Date.now();
     }
   }
 
@@ -273,6 +321,7 @@ class Session {
   }
 
   async #logIn({ username, password, udpApiKey, cacheDir }: SessionFields) {
+    const generation = this.#generation;
     // A new client paces itself afresh: keep AniDB's spacing between the last session's end and this login.
     const wait = this.#disconnectedAt + SPACING_MS - Date.now();
     if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
@@ -304,6 +353,11 @@ class Session {
     } catch (error) {
       cache.close();
       throw error;
+    }
+    if (generation !== this.#generation) {
+      // Shut down while logging in: this session is not the Session's any more.
+      await client.disconnect();
+      throw new Error("The AniDB Session was shut down");
     }
     this.#client = client;
     this.#heldLoggedIn = true;

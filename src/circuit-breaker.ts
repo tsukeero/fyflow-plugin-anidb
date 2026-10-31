@@ -50,18 +50,31 @@ export class CircuitBreaker {
 
   /** Throws while blocked, after taking in any block kept in `cacheDir`. */
   check(cacheDir: string | undefined) {
-    if (cacheDir !== undefined && !this.#dirs.has(cacheDir)) {
-      this.#dirs.add(cacheDir);
-      const kept = readKept(cacheDir);
-      if (kept !== undefined && kept.until > this.#block.until) this.#block = kept;
-    }
+    this.#takeIn(cacheDir);
     const block = this.block();
     if (block !== undefined) throw block;
   }
 
+  /** When the block lifts, while it lasts, after taking in any block kept in `cacheDir`. */
+  blockedUntil(cacheDir: string | undefined): number | undefined {
+    this.#takeIn(cacheDir);
+    return this.#lasts() ? this.#block.until : undefined;
+  }
+
+  #takeIn(cacheDir: string | undefined) {
+    if (cacheDir === undefined || this.#dirs.has(cacheDir)) return;
+    this.#dirs.add(cacheDir);
+    const kept = readKept(cacheDir);
+    if (kept !== undefined && kept.until > this.#block.until) this.#block = kept;
+  }
+
   /** The block, while it lasts. */
   block(): Error | undefined {
-    return this.#now() < this.#block.until ? this.#blocked() : undefined;
+    return this.#lasts() ? this.#blocked() : undefined;
+  }
+
+  #lasts() {
+    return this.#now() < this.#block.until;
   }
 
   /** AniDB answered a request, so the run of timeouts is over. */
