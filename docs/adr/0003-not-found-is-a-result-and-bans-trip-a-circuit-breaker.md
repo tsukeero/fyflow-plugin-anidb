@@ -1,0 +1,3 @@
+# Not found is a result; bans trip a Circuit breaker
+
+AniDB answers "no such file/anime/entry" as an error code, and signals a ban often only by silence. A Flow should branch on Not found, so Not found is a result (`found: false`), never a failed Task. A ban sign (`555`, a run of timeouts, `503`/`504`) trips the Circuit breaker instead: every AniDB Task fails at once with the time it lifts, sending nothing, for 30 minutes and doubling on each trip, kept in the Cache directory so a restart does not resume hammering. `501`/`506` (session expired) re-log in once and retry. No Node Type gets a default `retryPolicy`, since retrying into a ban makes it longer.
