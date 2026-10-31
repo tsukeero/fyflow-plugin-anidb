@@ -18,6 +18,13 @@ const vectors: Array<[string, number, string]> = [
   ["a file of exactly two chunks", 2 * CHUNK, "4c82fbfefb3168a3cfc64ba714070b1b"],
 ];
 
+// AniDB keeps the "red" ed2k for an exact multiple of the chunk size, the empty chunk counted; its wiki's Ed2k-hash
+// page publishes both variants for files of zeros, and these are its red ones (blue: d7def262…, 194ee9e4…).
+const zeroVectors: Array<[string, number, string]> = [
+  ["one chunk of zeros", CHUNK, "fc21d9af828f92a8df64beac3357425d"],
+  ["two chunks of zeros", 2 * CHUNK, "114b21c63a74b6ca922291a11177dd5c"],
+];
+
 const content = (size: number) => {
   const bytes = new Uint8Array(size);
   for (let i = 0; i < size; i++) bytes[i] = (i * 7 + 3) & 0xff;
@@ -51,6 +58,7 @@ beforeAll(async () => {
   await mkdir(root);
   await mkdir(outside);
   for (const [, size] of vectors) await writeFile(join(root, `${size}.bin`), content(size));
+  for (const [, size] of zeroVectors) await writeFile(join(root, `zeros-${size}.bin`), new Uint8Array(size));
   await writeFile(join(outside, "secret.bin"), content(10));
   await writeFile(join(root, "..extras.bin"), content(1000));
 });
@@ -66,6 +74,12 @@ describe("AniDBHashFile", () => {
     const result = await new HashFile().run(task(path, [root]), context().value);
 
     expect(result).toEqual({ path, size, ed2k });
+  });
+
+  it.each(zeroVectors)("hashes %s as AniDB's wiki publishes it", async (_name, size, ed2k) => {
+    const path = join(root, `zeros-${size}.bin`);
+
+    expect(await new HashFile().run(task(path, [root]), context().value)).toEqual({ path, size, ed2k });
   });
 
   it("reports progress by bytes read", async () => {

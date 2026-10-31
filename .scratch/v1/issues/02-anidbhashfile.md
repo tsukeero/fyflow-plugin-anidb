@@ -14,6 +14,6 @@
 
 ## Comments
 
-- The expected ed2k values come from Deno's `node:crypto` MD4, independent of `hash-wasm`, but the exact-multiple-of-a-chunk rule (append the empty chunk's MD4) is the one the spec states, not checked against a hash AniDB itself published. Before release, compare one file of exactly 9,728,000 bytes (or a multiple) with AniDB's own ed2k.
+- The expected ed2k values come from Deno's `node:crypto` MD4, independent of `hash-wasm`, but the exact-multiple-of-a-chunk rule (append the empty chunk's MD4) is the one the spec states, checked since (2026-10-31) against AniDB's own: AniDB keeps the "red" variant, the empty chunk counted. Its wiki's Ed2k-hash page publishes both variants for files of zeros, and says Avdump2 change-requests files from blue to red, keeping blue only as an "Alternative ed2k" in the file's description; AVDump3 issue #48 shows AniDB's primary `<ed2k>` is red and `<ed2k_alt>` blue for a 252,928,000-byte file. The wiki's zero-file values are now test vectors.
 - Beyond the ticket, from review: Roots and paths must be absolute (on Windows a drive or share path, not `\x`), a Root that is not absolute refuses every path (as fyflow.fs does), only regular files are read, and the real path is checked again after opening. A swap racing the check and the open is narrowed, not closed, as in fyflow.fs.
 - The path comes from the Task input only; a `path` Node setting was dropped as not asked for.
