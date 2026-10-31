@@ -11,6 +11,9 @@ importers:
       anidb-udp-client:
         specifier: ^2.0.1
         version: 2.0.1
+      hash-wasm:
+        specifier: ^4.12.0
+        version: 4.12.0
     devDependencies:
       '@biomejs/biome':
         specifier: 2.5.15
@@ -402,6 +405,9 @@ packages:
   fyflow-scheduler@0.6.0:
     resolution: {integrity: sha512-LYt4F652AB5Ce1t5ZdXadedWnOdBBYs1MMgKwp94H3nBGvtdlqm4quDmzp/mIiD7CXfSBRNYo3iz/1eSaCS8QQ==}
     engines: {node: '>=22'}
+
+  hash-wasm@4.12.0:
+    resolution: {integrity: sha512-+/2B2rYLb48I/evdOIhP+K/DD2ca2fgBjp6O+GBEnCDk2e4rpeXIK8GvIyRPjTezgmWn9gmKwkQjjx6BtqDHVQ==}
 
   jsonata@2.2.2:
     resolution: {integrity: sha512-XDFH2PuaAXv0AXJEWwElXbqADmKFGKMLMkFb+qOz0EhjQW2EIJ6pgtordLU+4u3IVERyBfqy6bi6kZKEncvRqA==}
@@ -844,6 +850,8 @@ snapshots:
       fyflow-orchestration: 0.13.0(fyflow-scheduler@0.6.0)
 
   fyflow-scheduler@0.6.0: {}
+
+  hash-wasm@4.12.0: {}
 
   jsonata@2.2.2: {}
 

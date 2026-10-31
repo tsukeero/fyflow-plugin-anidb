@@ -1,6 +1,7 @@
 import type { JsonSchema } from "fyflow-plugin-sdk";
 import { describe, expect, it } from "vitest";
 import Anime from "./anime.worker.ts";
+import HashFile from "./hash-file.worker.ts";
 import plugin from "./plugin.ts";
 
 type Schema = { properties?: Record<string, JsonSchema & { writeOnly?: boolean }> };
@@ -24,5 +25,22 @@ describe("the Plugin", () => {
     const worker = plugin.workers?.[anime?.worker ?? ""];
     const module = await import(new URL(worker?.url ?? "", plugin.base).href);
     expect(module.default).toBe(Anime);
+  });
+
+  it("grants Roots on the Profile only, per Task", () => {
+    expect(property("roots")).toMatchObject({ type: "array", items: { type: "string" } });
+    expect(plugin.profile?.profileOnly).toEqual(["roots"]);
+    expect(plugin.profile?.startup).not.toContain("roots");
+  });
+
+  it("contributes AniDBHashFile as a threaded Worker in the disk and cpu groups, taking the Roots", async () => {
+    const hash = plugin.nodeTypes?.AniDBHashFile;
+    expect(hash).toMatchObject({ profile: ["roots"], groups: ["disk", "cpu"] });
+    expect(hash?.inline).not.toBe(true);
+    expect(hash?.description).toEqual(expect.any(String));
+
+    const worker = plugin.workers?.[hash?.worker ?? ""];
+    const module = await import(new URL(worker?.url ?? "", plugin.base).href);
+    expect(module.default).toBe(HashFile);
   });
 });
