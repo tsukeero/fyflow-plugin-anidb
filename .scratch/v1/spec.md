@@ -64,7 +64,7 @@ A fyflow-app user with a folder of anime video files wants Flows that work out w
 - **Session Workers.** Every AniDB Node Type except hashing is `inline`, with `pool: { maxThreads: 1, maxConcurrentTasks: 100 }` so waiting Tasks reach `run()`. They borrow the Session for each request; a Worker's lifecycle never touches it, so instances retiring never disconnect it (only the idle logout does). While queued they report `sendProgress` with their place and wait, carrying the Session account.
 - **Session fields (ADR-0002).** The Session is opened with the start-up fields of the first Profile to use it. A Task whose Profile's account, credentials or Cache directory differ fails saying which account holds the Session; once the Session idles out, the next Profile may open it.
 - **Profile.** Fields: `username` (start-up), `password` (start-up, secret), `udpApiKey` (start-up, secret, optional; enables encryption), `cacheDir` (start-up, absolute path, optional), `roots` (per-Task, Profile-only, list of absolute paths). Only `AniDBHashFile` takes `roots`; Session Workers take the rest.
-- **Client identity.** The client name is a registered AniDB client, registered at version 1, matching `anidb-udp-client`'s hard-coded `clientver=1`. Until it is registered, the library's default client name is used in tests only.
+- **Client identity.** The Session uses `anidb-udp-client`'s default client name and its hard-coded `clientver=1`; this Plugin registers no client of its own (ticket 12, wontfix).
 - **Errors (ADR-0003).**
   - Not found codes become `{ found: false }` results.
   - `310` on MyList add becomes `{ added: false, lid, entry }`.
@@ -96,10 +96,10 @@ A fyflow-app user with a folder of anime video files wants Flows that work out w
 - Serving more than one AniDB account per Host at a time.
 - AniDB's HTTP API and image downloads.
 - Renaming or moving files: Flows do that with fyflow.fs.
-- A configurable `clientver`.
+- A configurable `clientver`, or a client name registered for this Plugin.
 
 ## Further Notes
 
-- Before release: register the client at anidb.net/software/add (version 1), drop `"private": true`, and make the repo public.
+- Before release: drop `"private": true` and make the repo public.
 - When fyflow-app ships Plugin status and a per-Plugin data directory, adopt both: status from the Session snapshot, and the data directory as the default Cache directory.
 - AniDB's wiki could not be read directly while designing; its rate limits and ban behaviour came from search extracts and other clients' docs. Recheck the exact limits before release.
