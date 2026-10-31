@@ -15,7 +15,7 @@ A Worker that borrows the Session for its Tasks instead of owning a connection; 
 _Avoid_: AniDB worker, client worker
 
 **Session account**:
-The AniDB username the Session is logged in as. A Task whose Profile names another account is refused while the Session is held.
+The AniDB username of the Profile holding the Session: the first Profile to use it holds it, with its Session fields, until the Session idles out (or that Profile's login is refused). A Task whose Profile differs in any Session field is refused meanwhile.
 _Avoid_: user, login
 
 **Request queue**:

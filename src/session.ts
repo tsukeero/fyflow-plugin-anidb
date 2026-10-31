@@ -64,6 +64,8 @@ const cacheDirOf = ({ cacheDir }: SessionFields) => {
   return cacheDir;
 };
 
+const duration = (ms: number) => (ms >= 60_000 ? `${ms / 60_000} minutes` : `${ms / 1000} seconds`);
+
 /** Progress is the Host's to show; a Task that cannot take it must not stall the queue. */
 const tell = (context: WorkerContext, message: string) => {
   try {
@@ -78,8 +80,6 @@ class Session {
   #login: Promise<Connection> | undefined;
   /** The logged-in client, once the login is done. */
   #client: AnidbUDPClient | undefined;
-  /** The Session account. */
-  #account: string | undefined;
   /** Whether the login's Cache is in a Cache directory, so its answers persist. */
   #persisted = false;
   /** The last logout, which a new login waits for, so two sessions never overlap. */
@@ -88,6 +88,18 @@ class Session {
   #sending: QueuedRequest | undefined;
   #idle: ReturnType<typeof setTimeout> | undefined;
   readonly #breaker: CircuitBreaker;
+  /**
+   * The start-up fields of the Profile holding the Session, whose username is the Session account: held from its first
+   * Task until the Session shuts down, as when idle, even across a disconnect the library makes by itself; or until
+   * its login is refused, never having held a session.
+   */
+  #holder: SessionFields | undefined;
+  /** Whether the holder's Profile has logged in: until it has, a refused login frees the Session. */
+  #heldLoggedIn = false;
+  /** When the Session idles out, while no Task is using it. */
+  #idleAt: number | undefined;
+  /** Counts shutdowns: a request still out from before one never logs in again. */
+  #generation = 0;
   /** When the last client disconnected, by the real clock the library paces by. */
   #disconnectedAt = Number.NEGATIVE_INFINITY;
 
@@ -111,6 +123,7 @@ class Session {
     cacheDirOf(fields);
     context.signal.throwIfAborted();
     this.#breaker.check(fields.cacheDir);
+    this.#hold(fields);
     return new Promise<T>((resolve, reject) => {
       const request: QueuedRequest = {
         fields,
@@ -135,7 +148,7 @@ class Session {
       };
       context.signal.addEventListener("abort", abort, { once: true });
       this.#queue.push(request);
-      clearTimeout(this.#idle);
+      this.#disarmIdle();
       if (this.#sending === undefined) void this.#next();
       else this.#tellQueued();
     });
@@ -145,7 +158,10 @@ class Session {
   async #next() {
     const request = this.#queue.shift();
     if (request === undefined) {
-      if (this.#login !== undefined) this.#armIdle();
+      // Held, even when the library disconnected by itself, until it idles out; but a holder whose login was refused
+      // never held a session, and the next Profile may open it.
+      if (this.#heldLoggedIn) this.#armIdle();
+      else this.#holder = undefined;
       return;
     }
     this.#sending = request;
@@ -169,6 +185,33 @@ class Session {
     }
   }
 
+  /**
+   * Takes the Session for `fields`' Profile, or fails if another Profile's fields hold it (ADR-0002): two accounts
+   * taking turns would juggle sessions into a ban. Names the fields that differ, never their values.
+   */
+  #hold(fields: SessionFields) {
+    const holder = this.#holder;
+    if (holder === undefined) {
+      this.#holder = { ...fields };
+      this.#heldLoggedIn = false;
+      return;
+    }
+    // An empty field is one not set.
+    const differ = SESSION_FIELDS.filter(
+      (field) => (holder[field] || undefined) !== (fields[field] || undefined),
+    );
+    if (differ.length === 0) return;
+    const when =
+      this.#idleAt === undefined
+        ? `idles out once its Tasks are done, after ${duration(this.#idleMs)} with none`
+        : `idles out at ${new Date(this.#idleAt).toISOString()} if no Task uses it`;
+    throw new Error(
+      `AniDB's Session is held by ${holder.username}, and this Task's Profile differs in ` +
+        `${differ.map((field) => `\`${field}\``).join(", ")}. A Host holds one AniDB account at a time: ` +
+        `the Session ${when}. Give every Profile the same AniDB fields to share it`,
+    );
+  }
+
   /** Rejects every queued request with the block. */
   #rejectQueued() {
     const block = this.#breaker.block();
@@ -177,20 +220,27 @@ class Session {
 
   /** Sends the request, logging in first if need be, and once more if AniDB says the session expired. */
   async #send(request: QueuedRequest) {
+    const generation = this.#generation;
     const connection = this.#connect(request.fields);
-    tell(request.context, `Asking AniDB as ${this.#account}`);
+    tell(request.context, `Asking AniDB as ${this.#holder?.username}`);
     if (!this.#persisted) tell(request.context, NOT_PERSISTED);
     try {
       return await request.call(await connection);
     } catch (error) {
-      if (!expired(error)) throw error;
+      if (!expired(error) || generation !== this.#generation) throw error;
       // The library disconnected on it: this logs in afresh.
       return await request.call(await this.#connect(request.fields));
     }
   }
 
+  #disarmIdle() {
+    clearTimeout(this.#idle);
+    this.#idleAt = undefined;
+  }
+
   /** Logs out once no request has come for the idle time, without keeping the Host's process alive for it. */
   #armIdle() {
+    this.#idleAt = Date.now() + this.#idleMs;
     this.#idle = setTimeout(() => void this.shutdown(), this.#idleMs);
     (this.#idle as { unref?: () => void }).unref?.();
   }
@@ -201,7 +251,7 @@ class Session {
       const place = index + 1;
       if (request.toldPlace === place) return;
       request.toldPlace = place;
-      const account = this.#account ?? request.fields.username;
+      const account = this.#holder?.username ?? request.fields.username;
       tell(
         request.context,
         `Queued #${place} for AniDB as ${account}, about ${(place * SPACING_MS) / 1000} s`,
@@ -214,7 +264,6 @@ class Session {
     if (this.#login === undefined) {
       const login = this.#loggingOut.then(() => this.#logIn(fields));
       this.#login = login;
-      this.#account = fields.username;
       this.#persisted = fields.cacheDir !== undefined;
       login.catch(() => {
         if (this.#login === login) this.#loggedOut();
@@ -257,18 +306,20 @@ class Session {
       throw error;
     }
     this.#client = client;
+    this.#heldLoggedIn = true;
     return { client, cache };
   }
 
   #loggedOut() {
     this.#login = undefined;
     this.#client = undefined;
-    this.#account = undefined;
   }
 
   /** Rejects every request queued or being sent, and logs out; the next request logs in again. */
   async shutdown() {
-    clearTimeout(this.#idle);
+    this.#disarmIdle();
+    this.#generation++;
+    this.#holder = undefined;
     const error = new Error("The AniDB Session was shut down");
     for (const request of this.#queue.splice(0)) request.reject(error);
     this.#sending?.reject(error);
