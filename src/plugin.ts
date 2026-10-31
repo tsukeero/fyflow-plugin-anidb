@@ -6,6 +6,10 @@ import { SESSION_FIELDS } from "./session.ts";
 // Worker modules sit beside this one: TypeScript in the source, JavaScript once built.
 const moduleExtension = import.meta.url.endsWith(".ts") ? "ts" : "js";
 
+// A Session Worker's pool: one instance, holding every waiting Task inside its run() so each can say why it waits in
+// the Request queue; AniDB's pace, not the pool, limits how fast they go.
+const SESSION_POOL = { maxThreads: 1, maxConcurrentTasks: 100 };
+
 export default definePlugin({
   id: "anidb",
   version: "0.0.0",
@@ -34,6 +38,7 @@ export default definePlugin({
     AniDBAnime: {
       worker: "anime",
       inline: true,
+      pool: SESSION_POOL,
       profile: [...SESSION_FIELDS],
       icon: "search",
       description: "Looks an anime up on AniDB by its aid.",

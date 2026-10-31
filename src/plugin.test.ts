@@ -20,6 +20,8 @@ describe("the Plugin", () => {
   it("contributes AniDBAnime as an inline Session Worker taking the account fields", async () => {
     const anime = plugin.nodeTypes?.AniDBAnime;
     expect(anime).toMatchObject({ inline: true, profile: ["username", "password", "udpApiKey"] });
+    // One instance per pool, holding every waiting Task inside run() so each can say why it waits.
+    expect(anime?.pool).toEqual({ maxThreads: 1, maxConcurrentTasks: 100 });
     expect(anime?.description).toEqual(expect.any(String));
 
     const worker = plugin.workers?.[anime?.worker ?? ""];

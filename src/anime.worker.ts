@@ -14,11 +14,11 @@ export default class Anime implements Worker<object, Input> {
     this.#fields = fields;
   }
 
-  async run({ input }: TaskEnvelope<object, Input>, _context: WorkerContext) {
+  async run({ input }: TaskEnvelope<object, Input>, context: WorkerContext) {
     const aid = input?.aid;
     if (typeof aid !== "number" || !Number.isInteger(aid) || aid < 1)
       throw new Error("AniDBAnime needs `aid`, a positive whole number, in its input");
-    const client = await session().client(this.#fields);
-    return { found: true, anime: await client.anime(aid, [...FIELDS]) };
+    const anime = await session().request(this.#fields, (client) => client.anime(aid, [...FIELDS]), context);
+    return { found: true, anime };
   }
 }

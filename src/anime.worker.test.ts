@@ -2,7 +2,7 @@ import type { TaskEnvelope, WorkerContext } from "fyflow-plugin-sdk";
 import { afterEach, describe, expect, it } from "vitest";
 import { type FakeAniDB, startFakeAniDB } from "../test/fake-anidb.ts";
 import Anime from "./anime.worker.ts";
-import { session } from "./session.ts";
+import { resetSession } from "./session.ts";
 
 const context = (): WorkerContext => ({ sendProgress: () => {}, signal: new AbortController().signal });
 const task = (input: unknown): TaskEnvelope<object, { aid?: unknown }> => ({
@@ -17,7 +17,7 @@ const bebop = (params: Record<string, string>) =>
 let anidb: FakeAniDB | undefined;
 
 afterEach(async () => {
-  await session().shutdown();
+  await resetSession();
   await anidb?.close();
   anidb = undefined;
 });
