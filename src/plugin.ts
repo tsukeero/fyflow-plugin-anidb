@@ -1,6 +1,7 @@
 // The Plugin's entry. Every Node Type talking to AniDB runs on an inline Session Worker borrowing the Host's one
 // Session (ADR-0001); hashing, which never talks to AniDB, runs threaded.
 import { CPU_GROUP, DISK_GROUP, definePlugin } from "fyflow-plugin-sdk";
+import { FILE_FIELDS } from "./file-fields.ts";
 import { SESSION_FIELDS } from "./session.ts";
 
 // Worker modules sit beside this one: TypeScript in the source, JavaScript once built.
@@ -35,6 +36,17 @@ export default definePlugin({
   workers: {
     anime: { url: `./anime.worker.${moduleExtension}` },
     hashFile: { url: `./hash-file.worker.${moduleExtension}` },
+    identifyFile: {
+      url: `./identify-file.worker.${moduleExtension}`,
+      settingsSchema: {
+        type: "object",
+        properties: {
+          // The file fields to get back, as anidb-udp-client names them; the aid, eid and gid always come back.
+          fields: { type: "array", items: { type: "string", enum: [...FILE_FIELDS] }, minItems: 1 },
+        },
+        additionalProperties: false,
+      },
+    },
   },
   nodeTypes: {
     AniDBAnime: {
@@ -44,6 +56,14 @@ export default definePlugin({
       profile: [...SESSION_FIELDS],
       icon: "search",
       description: "Looks an anime up on AniDB by its aid.",
+    },
+    AniDBIdentifyFile: {
+      worker: "identifyFile",
+      inline: true,
+      pool: SESSION_POOL,
+      profile: [...SESSION_FIELDS],
+      icon: "search",
+      description: "Identifies a hashed file on AniDB by its ed2k and size: its anime, episode and group.",
     },
     AniDBHashFile: {
       worker: "hashFile",

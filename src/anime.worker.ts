@@ -18,7 +18,11 @@ export default class Anime implements Worker<object, Input> {
     const aid = input?.aid;
     if (typeof aid !== "number" || !Number.isInteger(aid) || aid < 1)
       throw new Error("AniDBAnime needs `aid`, a positive whole number, in its input");
-    const anime = await session().request(this.#fields, (client) => client.anime(aid, [...FIELDS]), context);
+    const anime = await session().request(
+      this.#fields,
+      ({ client }) => client.anime(aid, [...FIELDS]),
+      context,
+    );
     return { found: true, anime };
   }
 }

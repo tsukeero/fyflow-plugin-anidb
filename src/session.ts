@@ -25,10 +25,16 @@ const NOT_PERSISTED = "AniDB answers will not persist: set `cacheDir` on this Ta
 /** Whether the Host's log has been told answers will not persist: once per process is enough. */
 let warnedNotPersisted = false;
 
+/** What a request is sent over: the logged-in client, and the Cache it keeps its answers in. */
+export interface Connection {
+  client: AnidbUDPClient;
+  cache: Cache;
+}
+
 /** A Task's request, waiting in the Request queue or being sent. */
 interface QueuedRequest {
   fields: SessionFields;
-  call: (client: AnidbUDPClient) => Promise<unknown>;
+  call: (connection: Connection) => Promise<unknown>;
   context: WorkerContext;
   resolve: (value: unknown) => void;
   reject: (reason: unknown) => void;
@@ -62,7 +68,7 @@ class Session {
   readonly #idleMs: number;
   readonly #now: (() => number) | undefined;
   /** The login, pending or done; undefined while logged out. */
-  #login: Promise<AnidbUDPClient> | undefined;
+  #login: Promise<Connection> | undefined;
   /** The logged-in client, once the login is done. */
   #client: AnidbUDPClient | undefined;
   /** The Session account. */
@@ -81,12 +87,12 @@ class Session {
   }
 
   /**
-   * Queues `call` for the logged-in client, telling the Task its place as the queue moves. A Task Cancelled while
+   * Queues `call` for the login, telling the Task its place as the queue moves. A Task Cancelled while
    * queued leaves without sending anything; one Cancelled while its request is out stops waiting for the reply.
    */
   request<T>(
     fields: SessionFields,
-    call: (client: AnidbUDPClient) => Promise<T>,
+    call: (connection: Connection) => Promise<T>,
     context: WorkerContext,
   ): Promise<T> {
     required(fields, "username");
@@ -166,7 +172,7 @@ class Session {
   }
 
   /** The login, starting one if logged out. */
-  #connect(fields: SessionFields): Promise<AnidbUDPClient> {
+  #connect(fields: SessionFields): Promise<Connection> {
     if (this.#login === undefined) {
       const login = this.#loggingOut.then(() => this.#logIn(fields));
       this.#login = login;
@@ -207,7 +213,7 @@ class Session {
       throw error;
     }
     this.#client = client;
-    return client;
+    return { client, cache };
   }
 
   #loggedOut() {
@@ -226,7 +232,7 @@ class Session {
     this.#loggedOut();
     if (login === undefined) return;
     this.#loggingOut = login.then(
-      (client) => client.disconnect(),
+      ({ client }) => client.disconnect(),
       () => {}, // It never logged in: nothing to close.
     );
     await this.#loggingOut;

@@ -2,6 +2,7 @@ import type { JsonSchema } from "fyflow-plugin-sdk";
 import { describe, expect, it } from "vitest";
 import Anime from "./anime.worker.ts";
 import HashFile from "./hash-file.worker.ts";
+import IdentifyFile from "./identify-file.worker.ts";
 import plugin from "./plugin.ts";
 
 type Schema = { properties?: Record<string, JsonSchema & { writeOnly?: boolean }> };
@@ -50,5 +51,24 @@ describe("the Plugin", () => {
     const worker = plugin.workers?.[hash?.worker ?? ""];
     const module = await import(new URL(worker?.url ?? "", plugin.base).href);
     expect(module.default).toBe(HashFile);
+  });
+
+  it("contributes AniDBIdentifyFile as an inline Session Worker whose fields a Flow may choose", async () => {
+    const identify = plugin.nodeTypes?.AniDBIdentifyFile;
+    expect(identify).toMatchObject({
+      inline: true,
+      profile: ["username", "password", "udpApiKey", "cacheDir"],
+    });
+    expect(identify?.pool).toEqual({ maxThreads: 1, maxConcurrentTasks: 100 });
+    expect(identify?.description).toEqual(expect.any(String));
+
+    const worker = plugin.workers?.[identify?.worker ?? ""];
+    expect(worker?.settingsSchema).toMatchObject({
+      properties: {
+        fields: { type: "array", items: { enum: expect.arrayContaining(["romanji_name", "epno"]) } },
+      },
+    });
+    const module = await import(new URL(worker?.url ?? "", plugin.base).href);
+    expect(module.default).toBe(IdentifyFile);
   });
 });
