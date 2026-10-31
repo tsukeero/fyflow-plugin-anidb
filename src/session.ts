@@ -2,9 +2,10 @@
 // lives on `globalThis`, so every copy of this module (one per Plugin entry stamp, after a Reload) finds the same one.
 // Tasks wait their turn in its Request queue, sent one at a time; the library spaces them at AniDB's pace.
 import { isAbsolute } from "node:path";
-import { AnidbUDPClient } from "anidb-udp-client";
+import { AnidbError, AnidbUDPClient, RESPONSE_CODE } from "anidb-udp-client";
 import type { WorkerContext } from "fyflow-plugin-sdk";
 import { Cache } from "./cache.ts";
+import { CircuitBreaker } from "./circuit-breaker.ts";
 
 /** The Profile's start-up fields the Session is opened with. */
 export const SESSION_FIELDS = ["username", "password", "udpApiKey", "cacheDir"] as const;
@@ -17,9 +18,15 @@ const SPACING_MS = 4_000;
 export interface SessionOptions {
   /** How long the Session stays logged in with no requests. */
   idleMs?: number;
-  /** The clock the Cache keeps time by. */
+  /** The clock the Cache and the Circuit breaker keep time by. */
   now?: () => number;
+  /** How many requests in a row AniDB may leave unanswered before the Circuit breaker trips. */
+  timeoutsToTrip?: number;
 }
+
+/** AniDB's answers that its session expired: the Session logs in again once and retries. */
+const EXPIRED = new Set<number>([RESPONSE_CODE.LOGIN_FIRST, RESPONSE_CODE.INVALID_SESSION]);
+const expired = (error: unknown) => error instanceof AnidbError && EXPIRED.has(error.code);
 
 const NOT_PERSISTED = "AniDB answers will not persist: set `cacheDir` on this Task's Profile";
 /** Whether the Host's log has been told answers will not persist: once per process is enough. */
@@ -80,10 +87,14 @@ class Session {
   readonly #queue: QueuedRequest[] = [];
   #sending: QueuedRequest | undefined;
   #idle: ReturnType<typeof setTimeout> | undefined;
+  readonly #breaker: CircuitBreaker;
+  /** When the last client disconnected, by the real clock the library paces by. */
+  #disconnectedAt = Number.NEGATIVE_INFINITY;
 
-  constructor({ idleMs = 10 * 60_000, now }: SessionOptions = {}) {
+  constructor({ idleMs = 10 * 60_000, now, timeoutsToTrip = 3 }: SessionOptions = {}) {
     this.#idleMs = idleMs;
     this.#now = now;
+    this.#breaker = new CircuitBreaker(now ?? Date.now, timeoutsToTrip);
   }
 
   /**
@@ -99,6 +110,7 @@ class Session {
     required(fields, "password");
     cacheDirOf(fields);
     context.signal.throwIfAborted();
+    this.#breaker.check(fields.cacheDir);
     return new Promise<T>((resolve, reject) => {
       const request: QueuedRequest = {
         fields,
@@ -139,15 +151,41 @@ class Session {
     this.#sending = request;
     this.#tellQueued();
     try {
-      const login = this.#connect(request.fields);
-      tell(request.context, `Asking AniDB as ${this.#account}`);
-      if (!this.#persisted) tell(request.context, NOT_PERSISTED);
-      request.resolve(await request.call(await login));
+      this.#breaker.check(request.fields.cacheDir);
+      request.resolve(await this.#send(request));
+      this.#breaker.answered();
     } catch (error) {
-      request.reject(error);
+      // A request cut off by a ban met elsewhere, such as on the library's ping, fails with the block too.
+      const block = this.#breaker.failed(error, request.fields.cacheDir) ?? this.#breaker.block();
+      if (block === undefined) request.reject(error);
+      else {
+        // The library has already disconnected: nothing more goes to AniDB until the block lifts.
+        this.#rejectQueued();
+        request.reject(block);
+      }
     } finally {
       this.#sending = undefined;
       void this.#next();
+    }
+  }
+
+  /** Rejects every queued request with the block. */
+  #rejectQueued() {
+    const block = this.#breaker.block();
+    if (block !== undefined) for (const queued of this.#queue.splice(0)) queued.reject(block);
+  }
+
+  /** Sends the request, logging in first if need be, and once more if AniDB says the session expired. */
+  async #send(request: QueuedRequest) {
+    const connection = this.#connect(request.fields);
+    tell(request.context, `Asking AniDB as ${this.#account}`);
+    if (!this.#persisted) tell(request.context, NOT_PERSISTED);
+    try {
+      return await request.call(await connection);
+    } catch (error) {
+      if (!expired(error)) throw error;
+      // The library disconnected on it: this logs in afresh.
+      return await request.call(await this.#connect(request.fields));
     }
   }
 
@@ -186,6 +224,9 @@ class Session {
   }
 
   async #logIn({ username, password, udpApiKey, cacheDir }: SessionFields) {
+    // A new client paces itself afresh: keep AniDB's spacing between the last session's end and this login.
+    const wait = this.#disconnectedAt + SPACING_MS - Date.now();
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
     let cache: Cache;
     try {
       cache = new Cache(cacheDir, this.#now);
@@ -202,9 +243,12 @@ class Session {
     const client = new AnidbUDPClient(undefined, { cache, logger: false });
     // The library disconnects by itself on a fatal reply: the next request then logs in again. The login's Cache
     // closes only once its client is done with it.
-    client.on(AnidbUDPClient.EVENTS.DISCONNECT, () => {
+    client.on(AnidbUDPClient.EVENTS.DISCONNECT, ({ error, source }: { error?: unknown; source?: string }) => {
+      this.#disconnectedAt = Date.now();
       cache.close();
       if (this.#client === client) this.#loggedOut();
+      // The library pings on its own, outside the Request queue: a ban it meets there trips the Circuit breaker too.
+      if (source === "autoPing" && this.#breaker.failed(error, cacheDir) !== undefined) this.#rejectQueued();
     });
     try {
       await client.connect(username, password, udpApiKey);

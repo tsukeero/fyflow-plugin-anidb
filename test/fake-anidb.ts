@@ -10,10 +10,15 @@ const ANIDB = { host: "api.anidb.net", port: 9000 };
 export interface ReceivedRequest {
   command: string;
   params: Record<string, string>;
+  /** When it arrived, by `Date.now()`. */
+  at: number;
 }
 
-/** Answers one command: the reply after the tag, such as `"230 ANIME\n1|Cowboy Bebop"`. */
-export type Handler = (params: Record<string, string>) => string;
+/**
+ * Answers one command: the reply after the tag, such as `"230 ANIME\n1|Cowboy Bebop"`, or undefined to send none, as
+ * when a packet is lost.
+ */
+export type Handler = (params: Record<string, string>) => string | undefined;
 
 export interface FakeAniDBOptions {
   /** Replies by command, over the defaults for ENCRYPT, AUTH, PING and LOGOUT. */
@@ -52,7 +57,7 @@ function parse(text: string): ReceivedRequest {
       const eq = pair.indexOf("=");
       params[pair.slice(0, eq)] = decode(pair.slice(eq + 1));
     }
-  return { command, params };
+  return { command, params, at: Date.now() };
 }
 
 const aes = (key: Buffer, input: Buffer, mode: "encrypt" | "decrypt") => {
@@ -81,9 +86,9 @@ export async function startFakeAniDB(options: FakeAniDBOptions = {}): Promise<Fa
     const request = parse(String(key ? aes(key, message, "decrypt") : message));
     received.push(request);
     const handler = handlers[request.command];
-    const reply = Buffer.from(
-      `${request.params.tag} ${handler ? handler(request.params) : "598 UNKNOWN COMMAND"}`,
-    );
+    const answer = handler ? handler(request.params) : "598 UNKNOWN COMMAND";
+    if (answer === undefined) return;
+    const reply = Buffer.from(`${request.params.tag} ${answer}`);
     // ENCRYPT's own reply is plain; everything after it is encrypted.
     socket.send(key ? aes(key, reply, "encrypt") : reply, from.port, from.address);
     if (request.command === "ENCRYPT" && options.udpApiKey)

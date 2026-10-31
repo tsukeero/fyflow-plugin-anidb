@@ -113,4 +113,9 @@ describe("the Plugin", () => {
       },
     });
   });
+
+  it("declares no default retryPolicy: retrying AniDB is the Session's, never the Host's", () => {
+    for (const nodeType of Object.values(plugin.nodeTypes ?? {}))
+      expect(nodeType).not.toHaveProperty("retryPolicy");
+  });
 });
