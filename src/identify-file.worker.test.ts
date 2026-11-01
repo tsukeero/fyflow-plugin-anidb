@@ -57,6 +57,10 @@ describe("AniDBIdentifyFile", () => {
         fid: 312498,
         state: "9",
         version: 3,
+        crc_ok: true,
+        crc_err: false,
+        censored: false,
+        uncensored: false,
         crc32: "a1b2c3d4",
         audio_codecs: "AAC",
         video_codec: "H264/AVC",
@@ -67,6 +71,29 @@ describe("AniDBIdentifyFile", () => {
       group: { gid: 7, group_short_name: "GRP" },
     });
     expect(anidb.received.at(-1)?.params).toMatchObject({ ed2k: ED2K, size: "734003200" });
+  }, 20_000);
+
+  it("decodes a censored file's state", async () => {
+    // State 162: CRC error (2), version 5 (32) and censored (128).
+    anidb = await startFakeAniDB({ handlers: { FILE: () => "220 FILE\n312498|1|10|7|162" } });
+
+    const result = await new IdentifyFile(alice).run(
+      task({ ed2k: ED2K, size: 734003200 }, { fields: ["state"] }),
+      context(),
+    );
+
+    expect(outputFindings("AniDBIdentifyFile", result)).toEqual([]);
+    expect(result).toMatchObject({
+      file: {
+        fid: 312498,
+        state: "162",
+        version: 5,
+        crc_ok: false,
+        crc_err: true,
+        censored: true,
+        uncensored: false,
+      },
+    });
   }, 20_000);
 
   it("returns the fields a Flow asks for", async () => {

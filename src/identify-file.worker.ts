@@ -1,5 +1,6 @@
 // The `AniDBIdentifyFile` Worker: Identification of a hashed file on AniDB, by its ed2k and size, through the
 // Session. The result keeps the rest of the input, so later Nodes still know which file it was.
+import { decodeFileState } from "anidb-udp-client";
 import type { TaskEnvelope, Worker, WorkerContext } from "fyflow-plugin-sdk";
 import {
   chosenFields,
@@ -21,14 +22,6 @@ const partOf = new Map<string, Part>(
 const IDS = { aid: "anime", eid: "episode", gid: "group" } as const;
 const ids = Object.keys(IDS) as Array<keyof typeof IDS>;
 
-/** AniDB's file state bits for versions 2 to 5; a file with none is version 1. */
-const VERSIONS: Array<[bit: number, version: number]> = [
-  [32, 5],
-  [16, 4],
-  [8, 3],
-  [4, 2],
-];
-
 type Settings = { fields?: string[] };
 type Input = { ed2k?: unknown; size?: unknown; [field: string]: unknown } | null | undefined;
 
@@ -48,10 +41,8 @@ function split(answer: Record<string, unknown>, fields: readonly FileField[]) {
     const part = partOf.get(name);
     if (part !== undefined) parts[part][name] = answer[name];
   }
-  if (fields.includes("state")) {
-    const state = Number(answer.state);
-    parts.file.version = VERSIONS.find(([bit]) => (state & bit) !== 0)?.[1] ?? 1;
-  }
+  // The state is a bit field: decoded beside it, so a Flow can branch on `file.version` or `file.crc_err`.
+  if (fields.includes("state")) Object.assign(parts.file, decodeFileState(answer.state as string));
   return parts;
 }
 

@@ -56,6 +56,23 @@ export const IDENTIFY_FILE_OUTPUT = {
           minimum: 1,
           description: "The release's version, 1 to 5, when the Node asks for `state`.",
         },
+        crc_ok: {
+          type: "boolean",
+          description: "The file's CRC32 matches the official one, when the Node asks for `state`.",
+        },
+        crc_err: {
+          type: "boolean",
+          description: "The file's CRC32 does not match the official one, when the Node asks for `state`.",
+        },
+        censored: {
+          type: "boolean",
+          description: "AniDB flags the file censored, when the Node asks for `state`.",
+        },
+        uncensored: {
+          type: "boolean",
+          description:
+            "AniDB flags the file uncensored, when the Node asks for `state`. Neither flag set: AniDB does not know.",
+        },
       },
     },
     anime: part("The file's anime.", "aid", "The anime's AniDB id."),
@@ -68,7 +85,16 @@ export const IDENTIFY_FILE_OUTPUT = {
       ed2k,
       size: 9_728_000,
       found: true,
-      file: { fid: 312498, state: "9", version: 3, crc32: "a1b2c3d4" },
+      file: {
+        fid: 312498,
+        state: "9",
+        version: 3,
+        crc_ok: true,
+        crc_err: false,
+        censored: false,
+        uncensored: false,
+        crc32: "a1b2c3d4",
+      },
       anime: { aid: 1, romanji_name: "Cowboy Bebop", english_name: "Cowboy Bebop" },
       episode: { eid: 10, epno: "01", ep_name: "Asteroid Blues" },
       group: { gid: 7, group_short_name: "GRP" },

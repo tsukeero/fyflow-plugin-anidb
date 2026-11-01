@@ -41,7 +41,7 @@ their input with their answer added, so later Nodes still know which file or ani
 | Node Type | Input | Result |
 | --- | --- | --- |
 | `AniDBHashFile` | `path`: the file's absolute path, under one of the Profile's `roots` | `path`, `size` (bytes), `ed2k` |
-| `AniDBIdentifyFile` | `ed2k` and `size`, as AniDBHashFile gives them | `found`; when found, `file` (`fid`…), `anime` (`aid`…), `episode` (`eid`…), `group` (`gid`…) |
+| `AniDBIdentifyFile` | `ed2k` and `size`, as AniDBHashFile gives them | `found`; when found, `file` (`fid`…; with `state`, also its `version`, `crc_ok`, `crc_err`, `censored`, `uncensored`), `anime` (`aid`…), `episode` (`eid`…), `group` (`gid`…) |
 | `AniDBAnime` | `aid`, or else `title` (one of its titles on AniDB) | `found`; when found, `anime` |
 | `AniDBEpisode` | `eid`, or else `aid` and `epno` (its number in the anime: `1`, or `S1` for a special, `C1` a credit, `T1` a trailer, `P1` a parody, `O1` another) | `found`; when found, `episode` |
 | `AniDBMyListGet` | `fid`, or else `ed2k` and `size` | `found`; when found, `entry` |

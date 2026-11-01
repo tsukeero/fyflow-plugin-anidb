@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       anidb-udp-client:
-        specifier: ^2.0.1
-        version: 2.0.1
+        specifier: ^2.0.2
+        version: 2.0.2
       hash-wasm:
         specifier: ^4.12.0
         version: 4.12.0
@@ -341,8 +341,8 @@ packages:
   '@vitest/spy@5.0.4':
     resolution: {integrity: sha512-MZKk/gSkm2q+ICobMxCpH1mA+cCAWm8WV7UhxlqGjq/sJ3AGc1BqFOs5CRVXxH78wQtme9q/NAAgBquj4AcyMw==}
 
-  anidb-udp-client@2.0.1:
-    resolution: {integrity: sha512-if7nR0VCfVvqOTW0XI9oLM6wP04k2fu7+38h0Q7m8917dXbaDNVobrcyTON+u7+k6j1UOKUtnuu82LMwo22Hsw==}
+  anidb-udp-client@2.0.2:
+    resolution: {integrity: sha512-4XCnxpy+kfW8hty+N0GoQVsQ7SrjiSahxc0xh2JRTFsHLAlgBJomZFjsCQpC7NR3gBFlbDugP5hqtZy1crkcVA==}
     engines: {node: '>=22'}
 
   assertion-error@2.0.1:
@@ -810,7 +810,7 @@ snapshots:
 
   '@vitest/spy@5.0.4': {}
 
-  anidb-udp-client@2.0.1:
+  anidb-udp-client@2.0.2:
     dependencies:
       bottleneck: 2.19.5
       node-cache: 5.1.2
