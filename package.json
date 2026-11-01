@@ -1,6 +1,6 @@
 {
   "name": "fyflow-plugin-anidb",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "description": "A fyflow-app Plugin for AniDB's UDP API, built on anidb-udp-client",
   "keywords": [

@@ -2,8 +2,8 @@
 
 From fyflow-plugin-anidb. The goal: an agent (or a person) given only the published `fyflow-plugin-sdk` can build a
 Plugin that installs and runs, and can prove that before release, without a checkout of fyflow-app. Today the SDK's
-README explains the contract well, but the last two steps, packaging and testing in a Host, take reading
-fyflow-app's source.
+README explains the contract well, but packaging and testing in a Host take reading fyflow-app's source, and nothing
+asks an author to describe a Node Type's input and output, which is what makes it usable in a Flow.
 
 ## 1. Packaging a Plugin folder
 
@@ -50,8 +50,38 @@ checkout, on Node and on Deno, and drives it over the HTTP API.
   routes it needs are the contract a Plugin author tests against, so naming them stable (or versioning them) is
   part of this.
 
+## 3. Describing what a Node Type takes and returns
+
+**Need.** A Node Type is only usable in a Flow if its author says what its Task input must hold and what it returns,
+yet nothing steers an author to say it. The SDK README mentions a Worker's `outputSchema` once, in the `workers` row
+of its table, and never `inputSchema`, though `WorkerEntry` takes both and the Host does a lot with them: the editor
+shows them and suggests an Edge condition's paths from the output; a Flow starting at the Node Type takes its input
+schema as the Run's input form (fyflow-app ADR-0019); MCP gives both to Agents; fyflow checks a Run's payload against
+the input schema at start, and a result given by hand against the output schema. fyflow-plugin-anidb shipped six
+Node Types with neither until its maintainer found AniDBEpisode's input unclear (its tickets 14 and 15).
+
+**Proposal.**
+
+- The README asks every Node Type's Worker to declare an `inputSchema` and an `outputSchema`, populated as fully as
+  the subset allows, and says what each one gives (the list above). Specifically:
+  - Type every field the Worker reads or returns, with a `description`, and mark `required` what every input needs or
+    every result carries.
+  - Give `examples`: one for each form the input takes and each outcome the result has (found and not found, added
+    and already there). fyflow holds them to the schema, so they cannot lie.
+  - Leave `additionalProperties` open where the Worker passes its input on, or a chained Flow will not start.
+- It states the subset (fyflow-orchestration's `SCHEMA_KEYWORDS`: no `anyOf`/`oneOf`, `$ref`, `pattern`, `if`/`then`)
+  and how to live with it: where an input takes one of two forms (an episode by `eid`, or by `aid` and `epno`), type
+  each field, leave them optional, say in the `description` which form wins, give an example of each, and let the
+  Worker refuse an input holding neither, before it does any work.
+- The Plugins page warns about a Node Type whose Worker declares no input or output schema, as it does for an unknown
+  icon, so an author sees the gap before a user does.
+- The test kit (section 2) holds every result a test gets to the Node Type's `outputSchema`, as fyflow-plugin-anidb's
+  `test/output-schema.ts` does with fyflow's `findings`, so a schema cannot drift from what the Worker returns.
+
 ## What fyflow-plugin-anidb does meanwhile
 
 `pnpm build` makes the Plugin folder `dist/anidb/`; `pnpm check:dist` loads it and checks it has no links and loads
 its dependencies from its own `node_modules`; `pnpm smoke` copies it into a Plugin directory as the installer does
-and runs a Flow through a Host from `../fyflow-app` on Node and Deno, against a fake AniDB.
+and runs a Flow through a Host from `../fyflow-app` on Node and Deno, against a fake AniDB. Every Worker declares
+an input and an output schema with examples (`src/inputs.ts`, `src/outputs.ts`); a test runs each input example
+through its Worker (all but AniDBHashFile's, which need a file), and every result a Worker test asserts is held to its output schema.
