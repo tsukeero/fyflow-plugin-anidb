@@ -11,7 +11,7 @@ A fyflow-app **Plugin** for AniDB's UDP API, built on [anidb-udp-client](https:/
 
 ## Rules
 
-- **Ship JavaScript.** A Host does not strip TypeScript under `node_modules`, so `pnpm build` compiles `src/` to `dist/`, and `package.json` `exports` point there.
+- **Ship JavaScript.** A Host does not strip TypeScript under `node_modules`, so `pnpm build` compiles `src/` into the Plugin folder `dist/anidb/` and completes it (a package.json, the dependencies copied as files, never links) so the app can install it with "Choose folder…"; `package.json` `exports` point there.
 - **The SDK is a peer, never bundled.** Import it for types (`import type`) wherever possible: the Host provides it at run time.
 - **Runtime-neutral where the Host is.** A Host runs on Node 26 and on Deno; anything a Worker uses has to work on both, or the gap is stated.
 - **Never commit AniDB credentials.** They belong in Profile secrets (`writeOnly`), and test credentials in `.env`, which git ignores.

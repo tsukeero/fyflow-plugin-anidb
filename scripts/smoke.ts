@@ -1,15 +1,16 @@
-// `pnpm smoke`: before a release, prove the built package works in a real Host. Packs this package, installs it with
-// the SDK into a temporary Plugin directory as npm would, starts a Host from ../fyflow-app on it (Node 26, then Deno)
-// with a Profile pointing at a fake AniDB, and runs a Flow hash → identify → MyList add. Local only: fyflow-app is not
-// on npm, so this is not part of `pnpm check` or CI.
+// `pnpm smoke`: before a release, prove the built Plugin folder works in a real Host. Builds it, copies it whole into
+// a temporary Plugin directory as the app's installer does, with the SDK beside it as a server Host has it, starts a
+// Host from ../fyflow-app on it (Node 26, then Deno) with a Profile pointing at a fake AniDB, and runs a Flow hash →
+// identify → MyList add. Local only: fyflow-app is not on npm, so this is not part of `pnpm check` or CI.
 import { type ChildProcess, execSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { FAKE_ANIDB_ENV } from "../test/anidb-address.ts";
 import { startFakeAniDB } from "../test/fake-anidb.ts";
+import { PLUGIN_FOLDER } from "./plugin-folder.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const APP = resolve(ROOT, "..", "fyflow-app");
@@ -26,19 +27,18 @@ function check(condition: unknown, message: string): asserts condition {
 const run = (command: string, args: string[], cwd: string) =>
   execSync([command, ...args.map((arg) => `"${arg}"`)].join(" "), { cwd, encoding: "utf8" });
 
-/** Builds and packs this package, and installs it with the SDK under a new Plugin directory, as npm would. */
+/** Builds the Plugin folder, and copies it into a new Plugin directory with the SDK beside it. */
 function pluginDirectory(work: string): string {
   run("pnpm", ["build"], ROOT);
-  const packed = run("pnpm", ["pack", "--pack-destination", work], ROOT).trim().split(/\r?\n/).at(-1) ?? "";
-  check(packed.endsWith(".tgz"), `pnpm pack gave no tarball: ${packed}`);
   const sdk = JSON.parse(
     readFileSync(join(ROOT, "node_modules", "fyflow-plugin-sdk", "package.json"), "utf8"),
   );
   const pluginDir = join(work, "plugins");
   mkdirSync(pluginDir);
+  cpSync(PLUGIN_FOLDER, join(pluginDir, "anidb"), { recursive: true });
   run(
     "npm",
-    ["install", "--no-audit", "--no-fund", "--prefer-offline", packed, `fyflow-plugin-sdk@${sdk.version}`],
+    ["install", "--no-audit", "--no-fund", "--prefer-offline", `fyflow-plugin-sdk@${sdk.version}`],
     pluginDir,
   );
   return pluginDir;
