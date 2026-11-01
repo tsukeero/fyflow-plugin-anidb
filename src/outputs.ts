@@ -100,6 +100,7 @@ export const IDENTIFY_FILE_OUTPUT = {
       group: { gid: 7, group_short_name: "GRP" },
     },
     { ed2k, size: 9_728_000, found: false },
+    { fid: 5, found: false },
   ],
 } as const;
 

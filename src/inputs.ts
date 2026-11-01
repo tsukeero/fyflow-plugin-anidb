@@ -25,7 +25,7 @@ const byHash = { ed2k: "fc21d9af828f92a8df64beac3357425d", size: 9_728_000 };
 const FILE_INPUT = {
   type: "object",
   description:
-    "The file: its `fid`, or else its `ed2k` and `size`, as AniDBHashFile or AniDBIdentifyFile give them.",
+    "The file: its `fid`, or else its `ed2k` and `size` as AniDBHashFile gives them. The `fid` wins when there are both.",
   properties: { fid: id("The file's AniDB id."), ed2k, size },
   examples: [{ fid: 1 }, byHash],
 } as const;
@@ -61,14 +61,7 @@ export const EPISODE_INPUT = {
   examples: [{ eid: 1 }, { aid: 1, epno: 1 }, { aid: 1, epno: "S1" }],
 } as const;
 
-export const IDENTIFY_FILE_INPUT = {
-  type: "object",
-  description: "The hashed file, by the `ed2k` and `size` AniDBHashFile gives.",
-  properties: { ed2k, size },
-  required: ["ed2k", "size"],
-  examples: [byHash],
-} as const;
-
+export const IDENTIFY_FILE_INPUT = FILE_INPUT;
 export const MYLIST_GET_INPUT = FILE_INPUT;
 export const MYLIST_ADD_INPUT = FILE_INPUT;
 

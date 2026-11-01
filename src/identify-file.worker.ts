@@ -1,5 +1,5 @@
-// The `AniDBIdentifyFile` Worker: Identification of a hashed file on AniDB, by its ed2k and size, through the
-// Session. The result keeps the rest of the input, so later Nodes still know which file it was.
+// The `AniDBIdentifyFile` Worker: Identification of a file on AniDB, by its fid or else by the ed2k and size
+// AniDBHashFile gives, through the Session. The result keeps the rest of the input, so later Nodes still know which file it was.
 import { decodeFileState } from "anidb-udp-client";
 import type { TaskEnvelope, Worker, WorkerContext } from "fyflow-plugin-sdk";
 import {
@@ -10,7 +10,7 @@ import {
   type FileField,
   type Part,
 } from "./fields.ts";
-import { fileByHash } from "./file-ref.ts";
+import { fileRef } from "./file-ref.ts";
 import { unlessNotFound } from "./not-found.ts";
 import { type SessionConfig, session } from "./session.ts";
 
@@ -23,7 +23,7 @@ const IDS = { aid: "anime", eid: "episode", gid: "group" } as const;
 const ids = Object.keys(IDS) as Array<keyof typeof IDS>;
 
 type Settings = { fields?: string[] };
-type Input = { ed2k?: unknown; size?: unknown; [field: string]: unknown } | null | undefined;
+type Input = { fid?: unknown; ed2k?: unknown; size?: unknown; [field: string]: unknown } | null | undefined;
 
 /**
  * The library's flat file answer, split into the file, anime, episode and group it describes. Only the `fields` asked
@@ -54,13 +54,15 @@ export default class IdentifyFile implements Worker<Settings, Input> {
   }
 
   async run({ settings, input }: TaskEnvelope<Settings, Input>, context: WorkerContext) {
-    const { ed2k, size } = fileByHash("AniDBIdentifyFile", input);
+    const ref = fileRef("AniDBIdentifyFile", input);
     const fields = chosenFields("AniDBIdentifyFile", settings.fields, FILE_FIELDS, DEFAULT_FILE_FIELDS);
+    const asked = [...ids, ...fields];
+    const key = "fid" in ref ? `FILE:fid=${ref.fid}` : `FILE:s${ref.size}|h${ref.ed2k}`;
     const answer = await session().request(
       this.#config,
       ({ client, cache }) =>
-        unlessNotFound(cache, `FILE:s${size}|h${ed2k}`, () =>
-          client.file_by_hash(ed2k, size, [...ids, ...fields]),
+        unlessNotFound(cache, key, () =>
+          "fid" in ref ? client.file(ref.fid, asked) : client.file_by_hash(ref.ed2k, ref.size, asked),
         ),
       context,
     );

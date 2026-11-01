@@ -21,7 +21,9 @@ const bebop01 =
   "220 FILE\n312498|1|10|7|9|a1b2c3d4|AAC|H264/AVC|1920x1080|Cowboy Bebop|Cowboy Bebop|01|Asteroid Blues|GRP";
 
 const file = (params: Record<string, string>) =>
-  params.ed2k === ED2K && params.size === "734003200" ? bebop01 : "320 NO SUCH FILE";
+  params.fid === "312498" || (params.ed2k === ED2K && params.size === "734003200")
+    ? bebop01
+    : "320 NO SUCH FILE";
 
 let dataDir: string;
 let alice: { username: string; password: string; host: { dataDir: string } };
@@ -71,6 +73,55 @@ describe("AniDBIdentifyFile", () => {
       group: { gid: 7, group_short_name: "GRP" },
     });
     expect(anidb.received.at(-1)?.params).toMatchObject({ ed2k: ED2K, size: "734003200" });
+  }, 20_000);
+
+  it("identifies a file by fid, keeping the rest of its input", async () => {
+    anidb = await startFakeAniDB({
+      handlers: {
+        FILE: (params) =>
+          params.fid === "312498" ? "220 FILE\n312498|1|10|7|Cowboy Bebop|01" : "320 NO SUCH FILE",
+      },
+    });
+    const input = { fid: 312498, note: "kept" };
+
+    const result = await meets(
+      "AniDBIdentifyFile",
+      new IdentifyFile(alice).run(task(input, { fields: ["romanji_name", "epno"] }), context()),
+    );
+
+    expect(result).toEqual({
+      fid: 312498,
+      note: "kept",
+      found: true,
+      file: { fid: 312498 },
+      anime: { aid: 1, romanji_name: "Cowboy Bebop" },
+      episode: { eid: 10, epno: "01" },
+      group: { gid: 7 },
+    });
+    expect(anidb.received.at(-1)?.params).toMatchObject({ fid: "312498" });
+    expect(anidb.received.at(-1)?.params).not.toHaveProperty("ed2k");
+  }, 20_000);
+
+  it("asks by fid when the input also has an ed2k and size", async () => {
+    anidb = await startFakeAniDB({ handlers: { FILE: file } });
+
+    await new IdentifyFile(alice).run(task({ fid: 312498, ed2k: ED2K, size: 1 }), context());
+
+    expect(anidb.received.at(-1)?.params).toMatchObject({ fid: "312498" });
+    expect(anidb.received.at(-1)?.params).not.toHaveProperty("ed2k");
+  }, 20_000);
+
+  it("says Not found for a fid AniDB does not know, and remembers it", async () => {
+    anidb = await startFakeAniDB({ handlers: { FILE: file } });
+    const worker = new IdentifyFile(alice);
+
+    expect(await meets("AniDBIdentifyFile", worker.run(task({ fid: 5 }), context()))).toEqual({
+      fid: 5,
+      found: false,
+    });
+    expect(await worker.run(task({ fid: 5 }), context())).toEqual({ fid: 5, found: false });
+
+    expect(anidb.commands().filter((command) => command === "FILE")).toHaveLength(1);
   }, 20_000);
 
   it("decodes a censored file's state", async () => {
@@ -158,7 +209,10 @@ describe("AniDBIdentifyFile", () => {
   }, 20_000);
 
   it.each([
+    ["ed2k", {}],
     ["ed2k", { size: 5 }],
+    ["fid", { fid: 0 }],
+    ["fid", { fid: "312498", ed2k: ED2K, size: 5 }],
     ["ed2k", { ed2k: "not-a-hash", size: 5 }],
     ["size", { ed2k: ED2K }],
     ["size", { ed2k: ED2K, size: -1 }],
