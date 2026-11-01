@@ -1,4 +1,5 @@
-import type { JsonSchema } from "fyflow-plugin-sdk";
+import { schemaProblem } from "fyflow-orchestration";
+import type { JsonSchema, WorkerContext } from "fyflow-plugin-sdk";
 import { describe, expect, it } from "vitest";
 import Anime from "./anime.worker.ts";
 import Episode from "./episode.worker.ts";
@@ -123,5 +124,44 @@ describe("the Plugin", () => {
     expect(plugin.status).toEqual(expect.any(Function));
     expect(plugin.nodeTypes).not.toHaveProperty("AniDBStatus");
     expect(plugin.workers).not.toHaveProperty("status");
+  });
+
+  type InputSchema = JsonSchema & {
+    description?: string;
+    examples?: unknown[];
+    additionalProperties?: boolean;
+  };
+  const inputSchemaOf = (name: string) =>
+    plugin.workers?.[plugin.nodeTypes?.[name]?.worker ?? ""]?.inputSchema as InputSchema | undefined;
+  const nodeTypeNames = Object.keys(plugin.nodeTypes ?? {});
+
+  it.each(nodeTypeNames)("says what %s takes as input, with examples, in a schema fyflow takes", (name) => {
+    const schema = inputSchemaOf(name);
+    expect(schema).toMatchObject({ type: "object", description: expect.any(String) });
+    expect(schema?.examples?.length).toBeGreaterThan(0);
+    expect(schemaProblem(schema)).toBeNull();
+  });
+
+  it.each(nodeTypeNames)("lets %s's input carry other fields, for the Nodes after it", (name) => {
+    expect(inputSchemaOf(name)?.additionalProperties).not.toBe(false);
+  });
+
+  // Each Session Worker reads its input before it queues; a Task already cancelled then stops before any request,
+  // so an example it takes ends cancelled, never refused. AniDBHashFile's example needs a file: its tests cover it.
+  it.each([
+    ["AniDBAnime", Anime],
+    ["AniDBEpisode", Episode],
+    ["AniDBIdentifyFile", IdentifyFile],
+    ["AniDBMyListGet", MyListGet],
+    ["AniDBMyListAdd", MyListAdd],
+  ])("takes every example of %s's input", async (name, Worker) => {
+    const worker = new Worker({ username: "alice", password: "secret" });
+    const cancelled = new AbortController();
+    cancelled.abort();
+    const context: WorkerContext = { sendProgress: () => {}, signal: cancelled.signal };
+    for (const input of (inputSchemaOf(name)?.examples ?? []) as Record<string, unknown>[])
+      await expect(worker.run({ settings: { profile: {} }, input }, context)).rejects.toMatchObject({
+        name: "AbortError",
+      });
   });
 });

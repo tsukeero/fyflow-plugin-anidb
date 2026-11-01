@@ -2,6 +2,14 @@
 // Session (ADR-0001); hashing, which never talks to AniDB, runs threaded. The Plugin's status reports the Session.
 import { CPU_GROUP, DISK_GROUP, definePlugin } from "fyflow-plugin-sdk";
 import { ANIME_FIELDS, FILE_FIELDS, fieldsSchema } from "./fields.ts";
+import {
+  ANIME_INPUT,
+  EPISODE_INPUT,
+  HASH_FILE_INPUT,
+  IDENTIFY_FILE_INPUT,
+  MYLIST_ADD_INPUT,
+  MYLIST_GET_INPUT,
+} from "./inputs.ts";
 import { MYLIST_SETTINGS_SCHEMA } from "./mylist-settings.ts";
 import { SESSION_FIELDS } from "./session.ts";
 import { status } from "./status.ts";
@@ -37,15 +45,24 @@ export default definePlugin({
     profileOnly: ["roots"],
   },
   workers: {
-    anime: { url: `./anime.worker.${moduleExtension}`, settingsSchema: fieldsSchema(ANIME_FIELDS) },
-    episode: { url: `./episode.worker.${moduleExtension}` },
-    hashFile: { url: `./hash-file.worker.${moduleExtension}` },
+    anime: {
+      url: `./anime.worker.${moduleExtension}`,
+      settingsSchema: fieldsSchema(ANIME_FIELDS),
+      inputSchema: ANIME_INPUT,
+    },
+    episode: { url: `./episode.worker.${moduleExtension}`, inputSchema: EPISODE_INPUT },
+    hashFile: { url: `./hash-file.worker.${moduleExtension}`, inputSchema: HASH_FILE_INPUT },
     identifyFile: {
       url: `./identify-file.worker.${moduleExtension}`,
       settingsSchema: fieldsSchema(FILE_FIELDS),
+      inputSchema: IDENTIFY_FILE_INPUT,
     },
-    myListGet: { url: `./mylist-get.worker.${moduleExtension}` },
-    myListAdd: { url: `./mylist-add.worker.${moduleExtension}`, settingsSchema: MYLIST_SETTINGS_SCHEMA },
+    myListGet: { url: `./mylist-get.worker.${moduleExtension}`, inputSchema: MYLIST_GET_INPUT },
+    myListAdd: {
+      url: `./mylist-add.worker.${moduleExtension}`,
+      settingsSchema: MYLIST_SETTINGS_SCHEMA,
+      inputSchema: MYLIST_ADD_INPUT,
+    },
   },
   nodeTypes: {
     AniDBAnime: {
