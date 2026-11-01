@@ -44,10 +44,12 @@ function pluginDirectory(work: string): string {
   return pluginDir;
 }
 
+const hostDataDir = (work: string, runtime: string) => join(work, `data-${runtime}`);
+
 /** Starts a Host from ../fyflow-app, resolving with its URL once it serves. */
 function startHost(runtime: "node" | "deno", work: string, pluginDir: string, fake: string) {
   const preload = pathToFileURL(PRELOAD).href;
-  const dataDir = join(work, `data-${runtime}`);
+  const dataDir = hostDataDir(work, runtime);
   const args = ["--port", "0", "--data-dir", dataDir, "--plugin-dir", pluginDir, "--no-auto-resume"];
   const env: NodeJS.ProcessEnv = { ...process.env, [FAKE_ANIDB_ENV]: fake };
   delete env.INIT_CWD;
@@ -124,14 +126,14 @@ async function smoke(runtime: "node" | "deno", work: string, pluginDir: string) 
     const plugin = plugins.find((p: { id: string }) => p.id === "anidb");
     check(plugin !== undefined, `the Host did not load the Plugin: ${JSON.stringify(skipped)}`);
     check(plugin.warnings.length === 0, `the Plugin has warnings: ${JSON.stringify(plugin.warnings)}`);
-    for (const name of ["AniDBHashFile", "AniDBIdentifyFile", "AniDBMyListAdd", "AniDBStatus"])
+    for (const name of ["AniDBHashFile", "AniDBIdentifyFile", "AniDBMyListAdd"])
       check(JSON.stringify(plugin.nodeTypes).includes(name), `the Plugin has no ${name}`);
+    check(plugin.hasStatus === true, "the Host shows no status for the Plugin");
 
     await api(base, "PUT", "/api/profiles/default/sections/anidb", {
       values: {
         username: "smoke",
         password: "smoke-secret",
-        cacheDir: join(work, `cache-${runtime}`),
         roots: [root],
       },
     });
@@ -162,6 +164,17 @@ async function smoke(runtime: "node" | "deno", work: string, pluginDir: string) 
       `the fake AniDB received ${commands.join(", ")}`,
     );
     check(anidb.received[1]?.params.size === "1000", "identify asked for another size");
+
+    // The Cache is in the data directory the Host gives the Plugin, and its status shows the Session.
+    const cache = join(hostDataDir(work, runtime), "plugin-data", "anidb", "anidb-cache.sqlite");
+    check(existsSync(cache), `the Cache is not in the Host's data directory: no ${cache}`);
+    const { statuses } = await api(base, "GET", "/api/plugins/status");
+    const status = statuses.find((s: { id: string }) => s.id === "anidb")?.status;
+    check(
+      status?.level === "ok" && status.summary === "Logged in to AniDB as smoke · 0 queued",
+      `the Plugin's status is ${JSON.stringify(status)}`,
+    );
+    check(!JSON.stringify(statuses).includes("smoke-secret"), "the Plugin's status shows the password");
     console.log(`${runtime}: hash → identify → MyList add completed; AniDB received ${commands.join(", ")}`);
   } finally {
     // A hard kill on Windows, whatever the signal; fyflow-app's own smoke accepts the same.

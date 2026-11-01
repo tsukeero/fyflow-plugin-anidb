@@ -7,7 +7,6 @@ import IdentifyFile from "./identify-file.worker.ts";
 import MyListAdd from "./mylist-add.worker.ts";
 import MyListGet from "./mylist-get.worker.ts";
 import plugin from "./plugin.ts";
-import Status from "./status.worker.ts";
 
 type Schema = { properties?: Record<string, JsonSchema & { writeOnly?: boolean }> };
 const property = (name: string) => (plugin.profile?.schema as Schema | undefined)?.properties?.[name];
@@ -22,15 +21,15 @@ describe("the Plugin", () => {
     expect(plugin.profile?.startup).toEqual(expect.arrayContaining(["username", "password", "udpApiKey"]));
   });
 
-  it("sets the Cache directory on the Profile, read when the Session logs in", () => {
-    expect(property("cacheDir")).toMatchObject({ type: "string" });
-    expect(property("cacheDir")?.writeOnly).toBeUndefined();
-    expect(plugin.profile?.startup).toContain("cacheDir");
+  it("asks the Host for a data directory to keep its Cache in, so no Profile sets one", () => {
+    expect(plugin.dataDir).toBe(true);
+    expect(property("cacheDir")).toBeUndefined();
+    expect(plugin.profile?.startup).toEqual(["username", "password", "udpApiKey"]);
   });
 
   it("contributes AniDBAnime as an inline Session Worker taking the account fields", async () => {
     const anime = plugin.nodeTypes?.AniDBAnime;
-    expect(anime).toMatchObject({ inline: true, profile: ["username", "password", "udpApiKey", "cacheDir"] });
+    expect(anime).toMatchObject({ inline: true, profile: ["username", "password", "udpApiKey"] });
     // One instance per pool, holding every waiting Task inside run() so each can say why it waits.
     expect(anime?.pool).toEqual({ maxThreads: 1, maxConcurrentTasks: 100 });
     expect(anime?.description).toEqual(expect.any(String));
@@ -61,7 +60,7 @@ describe("the Plugin", () => {
     const identify = plugin.nodeTypes?.AniDBIdentifyFile;
     expect(identify).toMatchObject({
       inline: true,
-      profile: ["username", "password", "udpApiKey", "cacheDir"],
+      profile: ["username", "password", "udpApiKey"],
     });
     expect(identify?.pool).toEqual({ maxThreads: 1, maxConcurrentTasks: 100 });
     expect(identify?.description).toEqual(expect.any(String));
@@ -84,7 +83,7 @@ describe("the Plugin", () => {
     const nodeType = plugin.nodeTypes?.[name];
     expect(nodeType).toMatchObject({
       inline: true,
-      profile: ["username", "password", "udpApiKey", "cacheDir"],
+      profile: ["username", "password", "udpApiKey"],
     });
     expect(nodeType?.pool).toEqual({ maxThreads: 1, maxConcurrentTasks: 100 });
     expect(nodeType?.description).toEqual(expect.any(String));
@@ -120,13 +119,9 @@ describe("the Plugin", () => {
       expect(nodeType).not.toHaveProperty("retryPolicy");
   });
 
-  it("contributes AniDBStatus as an inline Session Worker taking only the Cache directory, never a secret", async () => {
-    const status = plugin.nodeTypes?.AniDBStatus;
-    expect(status).toMatchObject({ inline: true, profile: ["cacheDir"] });
-    expect(status?.description).toEqual(expect.any(String));
-
-    const worker = plugin.workers?.[status?.worker ?? ""];
-    const module = await import(new URL(worker?.url ?? "", plugin.base).href);
-    expect(module.default).toBe(Status);
+  it("reports the Session through its status, not a Node Type", () => {
+    expect(plugin.status).toEqual(expect.any(Function));
+    expect(plugin.nodeTypes).not.toHaveProperty("AniDBStatus");
+    expect(plugin.workers).not.toHaveProperty("status");
   });
 });

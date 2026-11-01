@@ -8,7 +8,7 @@ A fyflow-app user with a folder of anime video files wants Flows that work out w
 
 ## Solution
 
-`fyflow-plugin-anidb`, a Plugin installed from npm into a Host's Plugin directory. It contributes Node Types to hash a file (ed2k), identify it on AniDB, read and add MyList entries, look up anime and episodes, and report the Session's state. Every AniDB Node Type borrows one Session per Host, which paces requests, caches answers, logs in again when the session expires, and stops talking to AniDB at the first sign of a ban until the block passes. The user sets their AniDB account, a Cache directory and the Roots files may be hashed under on a Profile; Flows chain the Node Types like any other.
+`fyflow-plugin-anidb`, a Plugin installed from npm into a Host's Plugin directory. It contributes Node Types to hash a file (ed2k), identify it on AniDB, read and add MyList entries, and look up anime and episodes; the Plugin's status reports the Session's state. Every AniDB Node Type borrows one Session per Host, which paces requests, caches answers, logs in again when the session expires, and stops talking to AniDB at the first sign of a ban until the block passes. The user sets their AniDB account and the Roots files may be hashed under on a Profile; the Cache lives in the data directory the Host gives the Plugin; Flows chain the Node Types like any other.
 
 ## User Stories
 
@@ -16,8 +16,8 @@ A fyflow-app user with a folder of anime video files wants Flows that work out w
 2. As a user, I want to set my AniDB username, password and optional UDP API key on a Profile, so that the Plugin can log in as me.
 3. As a user, I want my password and UDP API key to be secrets, so that the Host never shows them again or writes them into a Flow, error or log.
 4. As a user, I want my username shown in status and progress messages, so that I can see which account the Session uses.
-5. As a user, I want to set a Cache directory on a Profile, so that AniDB answers persist across Host restarts and I am not banned for asking again.
-6. As a user without a Cache directory, I want the Plugin to work with an in-memory Cache and warn me, so that I can try it before configuring storage.
+5. As a user, I want AniDB answers kept in the Plugin's data directory, so that they persist across Host restarts without my setting anything, and I am not banned for asking again.
+6. As a developer running a Worker without a Host's data directory, I want an in-memory Cache and a warning, so that tests run without storage.
 7. As a user, I want to grant Roots on a Profile, so that hashing reads only the folders I allow.
 8. As a user, I want hashing refused, with a message naming the Roots field, when no Roots are set, so that a Flow cannot read arbitrary files by default.
 9. As a Flow author, I want an `AniDBHashFile` Node Type that takes `{ path }` and returns `{ path, size, ed2k }`, so that I can identify files AniDB knows.
@@ -35,7 +35,7 @@ A fyflow-app user with a folder of anime video files wants Flows that work out w
 21. As a Flow author, I want an `AniDBMyListGet` Node Type, so that I can check whether and how a file is in my MyList.
 22. As a Flow author, I want an `AniDBAnime` Node Type by `aid` or title, so that I can enrich Flows with anime data.
 23. As a Flow author, I want an `AniDBEpisode` Node Type by `eid` or `aid` and episode number, so that I can get episode data.
-24. As a Flow author, I want an `AniDBStatus` Node Type returning the Session snapshot, so that a small Flow (or an Agent over MCP) can see whether AniDB is usable.
+24. As a user or an Agent, I want the Session snapshot as the Plugin's status (its card on the Plugins page, MCP's `list_plugins`), so that I can see whether AniDB is usable even when no Task runs.
 25. As a user, I want all AniDB traffic from my Host to go through one Session, whatever the Profiles, Node Types and Reloads, so that I am never banned for parallel sessions.
 26. As a user, I want the Session to send no faster than AniDB allows, so that I am never banned for flooding.
 27. As a user, I want the Session to connect only when a Task needs it and log out after 10 minutes with no Tasks, so that it neither holds an idle session forever nor logs in over and over.
@@ -56,27 +56,27 @@ A fyflow-app user with a folder of anime video files wants Flows that work out w
 
 ## Implementation Decisions
 
-- **Plugin identity.** Plugin id `anidb`; Node Types `AniDBHashFile`, `AniDBIdentifyFile`, `AniDBMyListAdd`, `AniDBMyListGet`, `AniDBAnime`, `AniDBEpisode`, `AniDBStatus`. Peer range `fyflow-plugin-sdk ^0.5.0`; the package ships compiled JavaScript.
+- **Plugin identity.** Plugin id `anidb`; Node Types `AniDBHashFile`, `AniDBIdentifyFile`, `AniDBMyListAdd`, `AniDBMyListGet`, `AniDBAnime`, `AniDBEpisode`; the Plugin's `status()` and `dataDir: true`. Peer range `fyflow-plugin-sdk ^0.6.0`; the package ships compiled JavaScript.
 - **Session (ADR-0001).** One Session per Host process, in its own module, registered on `globalThis` under a `Symbol.for` key so a second import never makes a second one. It wraps one `AnidbUDPClient`, created with this Plugin's Cache and logging, and owns:
   - the Request queue: cancel-aware, honouring each Task's abort signal while queued, handing the library one request at a time, paced at AniDB's limits (the library's own 4-second spacing stays as a floor);
   - lazy connect on the first request, idle logout after 10 minutes with no requests;
   - the Session snapshot: state (disconnected, connecting, connected, blocked), Session account, queue length, next send time, block-until time.
 - **Session Workers.** Every AniDB Node Type except hashing is `inline`, with `pool: { maxThreads: 1, maxConcurrentTasks: 100 }` so waiting Tasks reach `run()`. They borrow the Session for each request; a Worker's lifecycle never touches it, so instances retiring never disconnect it (only the idle logout does). While queued they report `sendProgress` with their place and wait, carrying the Session account.
-- **Session fields (ADR-0002).** The Session is opened with the start-up fields of the first Profile to use it. A Task whose Profile's account, credentials or Cache directory differ fails saying which account holds the Session; once the Session idles out, the next Profile may open it.
-- **Profile.** Fields: `username` (start-up), `password` (start-up, secret), `udpApiKey` (start-up, secret, optional; enables encryption), `cacheDir` (start-up, absolute path, optional), `roots` (per-Task, Profile-only, list of absolute paths). Only `AniDBHashFile` takes `roots`; Session Workers take the rest.
+- **Session fields (ADR-0002).** The Session is opened with the start-up fields of the first Profile to use it. A Task whose Profile's account or credentials differ fails saying which account holds the Session; once the Session idles out, the next Profile may open it.
+- **Profile.** Fields: `username` (start-up), `password` (start-up, secret), `udpApiKey` (start-up, secret, optional; enables encryption), `roots` (per-Task, Profile-only, list of absolute paths). Only `AniDBHashFile` takes `roots`; Session Workers take the rest.
 - **Client identity.** The Session uses `anidb-udp-client`'s default client name and its hard-coded `clientver=1`; this Plugin registers no client of its own (ticket 12, wontfix).
 - **Errors (ADR-0003).**
   - Not found codes become `{ found: false }` results.
   - `310` on MyList add becomes `{ added: false, lid, entry }`.
   - `501`/`506`: log in once more and retry the request.
-  - `555`, a run of timeouts, `503`/`504`: trip the Circuit breaker for 30 minutes, doubling on each trip (cap to be set in implementation, at most 24 hours), persisted in the Cache directory. While tripped, every AniDB Task fails at once with the block-until time.
+  - `555`, a run of timeouts, `503`/`504`: trip the Circuit breaker for 30 minutes, doubling on each trip (cap to be set in implementation, at most 24 hours), persisted in the Plugin's data directory. While tripped, every AniDB Task fails at once with the block-until time.
   - Other AniDB errors fail the Task with the AniDB code and label. No default `retryPolicy` on any Node Type.
-- **Cache (ADR-0004).** Implements the library's cache interface on `node:sqlite` in the Cache directory, writing as it goes, or in memory with no directory. Lifetimes by the library's key prefix: anime, episode and group 7 days; file 30 days; Not found 1 day; MyList never.
+- **Cache (ADR-0004).** Implements the library's cache interface on `node:sqlite` in the Plugin's data directory, writing as it goes, or in memory when a Worker is given none. Lifetimes by the library's key prefix: anime, episode and group 7 days; file 30 days; Not found 1 day; MyList never.
 - **`fields`.** `AniDBIdentifyFile` and `AniDBAnime` take a `fields` setting validated against the library's field names, with a default set. The result holds the requested fields; the library's cache merges partial answers, and widening `fields` asks AniDB for the full set again, refreshing the cached answer.
 - **Hashing (ADR-0005).** `AniDBHashFile` is threaded, takes the `disk` and `cpu` groups, refuses paths not absolute or outside `roots` (resolved, so `..` and symlinks cannot escape), streams the file in 9,728,000-byte chunks through `hash-wasm`'s MD4, reports progress by bytes, checks its abort signal between chunks, and appends the empty-chunk hash when the size is an exact multiple of the chunk size.
 - **Input conventions.** Paths are absolute, as fyflow.fs's are, so a fyflow.fs listing can feed hashing. `AniDBIdentifyFile` spreads its input into its result before adding its own fields.
 - **Library changes upstream** (tracked on anidb-udp-client): optional automatic re-login on `501`/`506`, and separate codes for `NOT_CONNECTED` and `FAILED_TO_INITIALIZE`. The Plugin's own re-login stays until the library's ships.
-- **fyflow-app changes upstream** (request in `.scratch/v1/upstream/fyflow-app-plugin-status.md`): Plugin status on the Plugins page, and a per-Plugin data directory. Not needed for v1.
+- **fyflow-app changes upstream** (request in `.scratch/v1/upstream/fyflow-app-plugin-status.md`): Plugin status on the Plugins page, and a per-Plugin data directory. Shipped in fyflow-plugin-sdk 0.6.0 (reply in `fyflow-app-plugin-status-reply.md`) and adopted (ticket 13).
 
 ## Testing Decisions
 
@@ -101,5 +101,4 @@ A fyflow-app user with a folder of anime video files wants Flows that work out w
 ## Further Notes
 
 - Before release: drop `"private": true` and make the repo public.
-- When fyflow-app ships Plugin status and a per-Plugin data directory, adopt both: status from the Session snapshot, and the data directory as the default Cache directory.
 - AniDB's wiki could not be read directly while designing; its rate limits and ban behaviour came from search extracts and other clients' docs. Recheck the exact limits before release.

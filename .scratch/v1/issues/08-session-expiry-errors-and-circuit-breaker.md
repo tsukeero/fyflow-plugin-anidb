@@ -23,3 +23,4 @@
   - On every code in its fatal list (bans, timeouts, 501/506, and also 502, 505, 600, 601, 602, 604…) the library disconnects, sending a raw `LOGOUT`, unpaced, even after a ban; after a timeout that `LOGOUT` may itself wait 30 s. So "changes nothing else in the Session" holds only for non-fatal codes (tested with `598`): after a fatal one the next Task logs in again.
   - Each timeout below the trip threshold therefore costs a new login.
 - Not tested: an answer ending a run of timeouts (it would take a further 30 s wait).
+- 2026-11-01, ticket 13: the `cacheDir` Profile field is gone; the Cache and the block now live in the data directory the Host gives the Plugin (SDK 0.6).

@@ -28,15 +28,15 @@ const failure = (promise: Promise<unknown>) =>
     (error: Error) => error.message,
   );
 
-let cacheDir: string;
-let alice: { username: string; password: string; cacheDir: string };
+let dataDir: string;
+let alice: { username: string; password: string; host: { dataDir: string } };
 let anidb: FakeAniDB | undefined;
 let now: number;
 const clock = () => now;
 
 beforeEach(async () => {
-  cacheDir = await mkdtemp(join(tmpdir(), "anidb-breaker-"));
-  alice = { username: "alice", password: "secret", cacheDir };
+  dataDir = await mkdtemp(join(tmpdir(), "anidb-breaker-"));
+  alice = { username: "alice", password: "secret", host: { dataDir } };
   now = Date.parse("2026-10-31T12:00:00Z");
   await resetSession({ now: clock });
 });
@@ -45,7 +45,7 @@ afterEach(async () => {
   await resetSession();
   await anidb?.close();
   anidb = undefined;
-  await rm(cacheDir, { recursive: true, force: true });
+  await rm(dataDir, { recursive: true, force: true });
 });
 
 describe("an expired AniDB session", () => {
@@ -132,7 +132,7 @@ describe("the Circuit breaker", () => {
     );
   }, 30_000);
 
-  it("keeps the block in the Cache directory, so a new Session is still blocked", async () => {
+  it("keeps the block in the Plugin's data directory, so a new Session is still blocked", async () => {
     anidb = await startFakeAniDB({ handlers: { ANIME: () => "555 BANNED" } });
     await failure(new Anime(alice).run(task(1), context()));
 
@@ -144,7 +144,7 @@ describe("the Circuit breaker", () => {
   }, 30_000);
 
   it("never blocks longer than a day, counting trips kept from before a restart", async () => {
-    await writeFile(join(cacheDir, "anidb-block.json"), JSON.stringify({ until: now - MINUTE, trips: 6 }));
+    await writeFile(join(dataDir, "anidb-block.json"), JSON.stringify({ until: now - MINUTE, trips: 6 }));
     anidb = await startFakeAniDB({ handlers: { ANIME: () => "555 BANNED" } });
 
     expect(await failure(new Anime(alice).run(task(1), context()))).toContain(
@@ -153,13 +153,13 @@ describe("the Circuit breaker", () => {
   }, 30_000);
 
   it("ignores a block file it cannot read", async () => {
-    await writeFile(join(cacheDir, "anidb-block.json"), "not json");
+    await writeFile(join(dataDir, "anidb-block.json"), "not json");
     anidb = await startFakeAniDB({ handlers: { ANIME: () => bebop } });
 
     expect(await new Anime(alice).run(task(1), context())).toMatchObject({ found: true });
   }, 30_000);
 
-  it("keeps the block in memory only without a Cache directory", async () => {
+  it("keeps the block in memory only without a data directory", async () => {
     anidb = await startFakeAniDB({ handlers: { ANIME: inTurn("555 BANNED", bebop) } });
     const bob = { username: "bob", password: "secret" };
     await failure(new Anime(bob).run(task(1), context()));

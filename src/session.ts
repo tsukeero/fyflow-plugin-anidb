@@ -1,16 +1,21 @@
 // The Session: the one AniDB UDP connection a Host process holds, borrowed by every Session Worker (ADR-0001). It
 // lives on `globalThis`, so every copy of this module (one per Plugin entry stamp, after a Reload) finds the same one.
 // Tasks wait their turn in its Request queue, sent one at a time; the library spaces them at AniDB's pace.
-import { isAbsolute } from "node:path";
 import { AnidbError, AnidbUDPClient, RESPONSE_CODE } from "anidb-udp-client";
-import type { WorkerContext } from "fyflow-plugin-sdk";
+import type { HostConfig, WorkerContext } from "fyflow-plugin-sdk";
 import { Cache } from "./cache.ts";
 import { CircuitBreaker } from "./circuit-breaker.ts";
 
-/** The Profile's start-up fields the Session is opened with. */
-export const SESSION_FIELDS = ["username", "password", "udpApiKey", "cacheDir"] as const;
+/** The Profile's start-up fields the Session is opened with: the AniDB account. */
+export const SESSION_FIELDS = ["username", "password", "udpApiKey"] as const;
 
-export type SessionFields = Partial<Record<(typeof SESSION_FIELDS)[number], string>>;
+type SessionFields = Partial<Record<(typeof SESSION_FIELDS)[number], string>>;
+
+/**
+ * A Session Worker's config: its Profile's Session fields, and the Plugin's data directory the Host gives it, where the
+ * Cache and the Circuit breaker's block are kept. Without one (as in tests), answers last only as long as the Session.
+ */
+export type SessionConfig = SessionFields & { host?: HostConfig };
 
 /** The time anidb-udp-client leaves between requests (its own, not configurable), to AniDB's long-term limit. */
 const SPACING_MS = 4_000;
@@ -28,7 +33,7 @@ export interface SessionOptions {
 const EXPIRED = new Set<number>([RESPONSE_CODE.LOGIN_FIRST, RESPONSE_CODE.INVALID_SESSION]);
 const expired = (error: unknown) => error instanceof AnidbError && EXPIRED.has(error.code);
 
-const NOT_PERSISTED = "AniDB answers will not persist: set `cacheDir` on this Task's Profile";
+const NOT_PERSISTED = "AniDB answers will not persist: the Host gave this Plugin no data directory";
 /** Whether the Host's log has been told answers will not persist: once per process is enough. */
 let warnedNotPersisted = false;
 
@@ -56,7 +61,7 @@ export interface SessionSnapshot {
 
 /** A Task's request, waiting in the Request queue or being sent. */
 interface QueuedRequest {
-  fields: SessionFields;
+  config: SessionConfig;
   call: (connection: Connection) => Promise<unknown>;
   context: WorkerContext;
   resolve: (value: unknown) => void;
@@ -65,20 +70,14 @@ interface QueuedRequest {
   toldPlace?: number;
 }
 
-const required = (fields: SessionFields, name: "username" | "password") => {
-  const value = fields[name];
+const required = (config: SessionConfig, name: "username" | "password") => {
+  const value = config[name];
   if (value === undefined || value === "")
     throw new Error(`No AniDB ${name}: set \`${name}\` in the anidb section of this Task's Profile`);
   return value;
 };
 
-const cacheDirOf = ({ cacheDir }: SessionFields) => {
-  if (cacheDir !== undefined && !isAbsolute(cacheDir))
-    throw new Error(
-      `The Cache directory ${cacheDir} is not an absolute path: fix \`cacheDir\` on this Task's Profile`,
-    );
-  return cacheDir;
-};
+const dataDirOf = (config: SessionConfig | undefined) => config?.host?.dataDir;
 
 const duration = (ms: number) => (ms >= 60_000 ? `${ms / 60_000} minutes` : `${ms / 1000} seconds`);
 
@@ -96,7 +95,7 @@ class Session {
   #login: Promise<Connection> | undefined;
   /** The logged-in client, once the login is done. */
   #client: AnidbUDPClient | undefined;
-  /** Whether the login's Cache is in a Cache directory, so its answers persist. */
+  /** Whether the login's Cache is in the Plugin's data directory, so its answers persist. */
   #persisted = false;
   /** The last logout, which a new login waits for, so two sessions never overlap. */
   #loggingOut: Promise<void> = Promise.resolve();
@@ -105,11 +104,11 @@ class Session {
   #idle: ReturnType<typeof setTimeout> | undefined;
   readonly #breaker: CircuitBreaker;
   /**
-   * The start-up fields of the Profile holding the Session, whose username is the Session account: held from its first
+   * The config of the Worker whose Profile holds the Session, whose username is the Session account: held from its first
    * Task until the Session shuts down, as when idle, even across a disconnect the library makes by itself; or until
    * its login is refused, never having held a session.
    */
-  #holder: SessionFields | undefined;
+  #holder: SessionConfig | undefined;
   /** Whether the holder's Profile has logged in: until it has, a refused login frees the Session. */
   #heldLoggedIn = false;
   /** When the Session idles out, while no Task is using it. */
@@ -132,19 +131,18 @@ class Session {
    * queued leaves without sending anything; one Cancelled while its request is out stops waiting for the reply.
    */
   request<T>(
-    fields: SessionFields,
+    config: SessionConfig,
     call: (connection: Connection) => Promise<T>,
     context: WorkerContext,
   ): Promise<T> {
-    required(fields, "username");
-    required(fields, "password");
-    cacheDirOf(fields);
+    required(config, "username");
+    required(config, "password");
     context.signal.throwIfAborted();
-    this.#breaker.check(fields.cacheDir);
-    this.#hold(fields);
+    this.#breaker.check(dataDirOf(config));
+    this.#hold(config);
     return new Promise<T>((resolve, reject) => {
       const request: QueuedRequest = {
-        fields,
+        config,
         call,
         context,
         resolve: (value) => {
@@ -185,12 +183,12 @@ class Session {
     this.#sending = request;
     this.#tellQueued();
     try {
-      this.#breaker.check(request.fields.cacheDir);
+      this.#breaker.check(dataDirOf(request.config));
       request.resolve(await this.#send(request));
       this.#breaker.answered();
     } catch (error) {
       // A request cut off by a ban met elsewhere, such as on the library's ping, fails with the block too.
-      const block = this.#breaker.failed(error, request.fields.cacheDir) ?? this.#breaker.block();
+      const block = this.#breaker.failed(error, dataDirOf(request.config)) ?? this.#breaker.block();
       if (block === undefined) request.reject(error);
       else {
         // The library has already disconnected: nothing more goes to AniDB until the block lifts.
@@ -204,13 +202,11 @@ class Session {
   }
 
   /**
-   * The Session snapshot, taking in any block kept in `cacheDir`. It never connects, queues or sends: a status asked
-   * for while AniDB is slow or blocked answers at once.
+   * The Session snapshot, taking in any block kept in the Plugin's data directory. It never connects, queues or sends: a
+   * status asked for while AniDB is slow or blocked answers at once.
    */
-  snapshot(cacheDir: string | undefined): SessionSnapshot {
-    const blockedUntil = this.#breaker.blockedUntil(
-      cacheDirOf(cacheDir === undefined ? {} : { cacheDir }) ?? this.#holder?.cacheDir,
-    );
+  snapshot(dataDir: string | undefined): SessionSnapshot {
+    const blockedUntil = this.#breaker.blockedUntil(dataDir ?? dataDirOf(this.#holder));
     const state =
       blockedUntil !== undefined
         ? "blocked"
@@ -232,19 +228,19 @@ class Session {
   }
 
   /**
-   * Takes the Session for `fields`' Profile, or fails if another Profile's fields hold it (ADR-0002): two accounts
+   * Takes the Session for `config`'s Profile, or fails if another Profile's fields hold it (ADR-0002): two accounts
    * taking turns would juggle sessions into a ban. Names the fields that differ, never their values.
    */
-  #hold(fields: SessionFields) {
+  #hold(config: SessionConfig) {
     const holder = this.#holder;
     if (holder === undefined) {
-      this.#holder = { ...fields };
+      this.#holder = { ...config };
       this.#heldLoggedIn = false;
       return;
     }
     // An empty field is one not set.
     const differ = SESSION_FIELDS.filter(
-      (field) => (holder[field] || undefined) !== (fields[field] || undefined),
+      (field) => (holder[field] || undefined) !== (config[field] || undefined),
     );
     if (differ.length === 0) return;
     const when =
@@ -267,7 +263,7 @@ class Session {
   /** Sends the request, logging in first if need be, and once more if AniDB says the session expired. */
   async #send(request: QueuedRequest) {
     const generation = this.#generation;
-    const connection = this.#connect(request.fields);
+    const connection = this.#connect(request.config);
     tell(request.context, `Asking AniDB as ${this.#holder?.username}`);
     if (!this.#persisted) tell(request.context, NOT_PERSISTED);
     try {
@@ -275,7 +271,7 @@ class Session {
     } catch (error) {
       if (!expired(error) || generation !== this.#generation) throw error;
       // The library disconnected on it: this logs in afresh.
-      return await request.call(await this.#connect(request.fields));
+      return await request.call(await this.#connect(request.config));
     } finally {
       this.#answeredAt = Date.now();
     }
@@ -299,7 +295,7 @@ class Session {
       const place = index + 1;
       if (request.toldPlace === place) return;
       request.toldPlace = place;
-      const account = this.#holder?.username ?? request.fields.username;
+      const account = this.#holder?.username ?? request.config.username;
       tell(
         request.context,
         `Queued #${place} for AniDB as ${account}, about ${(place * SPACING_MS) / 1000} s`,
@@ -308,11 +304,11 @@ class Session {
   }
 
   /** The login, starting one if logged out. */
-  #connect(fields: SessionFields): Promise<Connection> {
+  #connect(config: SessionConfig): Promise<Connection> {
     if (this.#login === undefined) {
-      const login = this.#loggingOut.then(() => this.#logIn(fields));
+      const login = this.#loggingOut.then(() => this.#logIn(config));
       this.#login = login;
-      this.#persisted = fields.cacheDir !== undefined;
+      this.#persisted = dataDirOf(config) !== undefined;
       login.catch(() => {
         if (this.#login === login) this.#loggedOut();
       });
@@ -320,20 +316,20 @@ class Session {
     return this.#login;
   }
 
-  async #logIn({ username, password, udpApiKey, cacheDir }: SessionFields) {
+  async #logIn(config: SessionConfig) {
+    const { username, password, udpApiKey } = config;
+    const dataDir = dataDirOf(config);
     const generation = this.#generation;
     // A new client paces itself afresh: keep AniDB's spacing between the last session's end and this login.
     const wait = this.#disconnectedAt + SPACING_MS - Date.now();
     if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
     let cache: Cache;
     try {
-      cache = new Cache(cacheDir, this.#now);
+      cache = new Cache(dataDir, this.#now);
     } catch (error) {
-      throw new Error(
-        `Cannot keep the Cache in ${cacheDir}: ${(error as Error).message}: fix \`cacheDir\` on this Task's Profile`,
-      );
+      throw new Error(`Cannot keep the Cache in ${dataDir}: ${(error as Error).message}`);
     }
-    if (cacheDir === undefined && !warnedNotPersisted) {
+    if (dataDir === undefined && !warnedNotPersisted) {
       warnedNotPersisted = true;
       console.warn(`fyflow-plugin-anidb: ${NOT_PERSISTED}`);
     }
@@ -346,7 +342,7 @@ class Session {
       cache.close();
       if (this.#client === client) this.#loggedOut();
       // The library pings on its own, outside the Request queue: a ban it meets there trips the Circuit breaker too.
-      if (source === "autoPing" && this.#breaker.failed(error, cacheDir) !== undefined) this.#rejectQueued();
+      if (source === "autoPing" && this.#breaker.failed(error, dataDir) !== undefined) this.#rejectQueued();
     });
     try {
       await client.connect(username, password, udpApiKey);

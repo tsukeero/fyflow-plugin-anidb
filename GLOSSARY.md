@@ -27,8 +27,12 @@ The Session state that refuses every AniDB Task without sending a packet, from a
 _Avoid_: ban mode, cooldown
 
 **Session snapshot**:
-What the Session reports about itself: state, Session account, queue length, the next send time and any Circuit breaker block.
+What the Session reports about itself: state, Session account, queue length, the next send time and any Circuit breaker block. The Plugin's status shows it on the Plugin's card and to Agents.
 _Avoid_: health, status object
+
+**Plugin status**:
+The Session snapshot as the Host shows it, on the Plugin's card on the Plugins page and in MCP's `list_plugins`: a level, a one-line summary, and details. Asked for every few seconds; it never connects, queues or sends.
+_Avoid_: health check, AniDBStatus
 
 ### AniDB data
 
@@ -48,12 +52,12 @@ _Avoid_: library, collection
 An AniDB answer that the asked-for thing does not exist; a Task result (`found: false`), never a failure.
 
 **Cache**:
-The persistent store of AniDB answers the Session keeps in the Cache directory, so the same data is not asked for twice; AniDB requires one.
+The persistent store of AniDB answers the Session keeps in the Plugin's data directory, so the same data is not asked for twice; AniDB requires one.
 _Avoid_: store, database
 
-**Cache directory**:
-The absolute path, a Profile start-up field, where the Cache and the Circuit breaker's state live. With none set, the Cache lives in memory only.
-_Avoid_: data dir, state dir
+**Data directory**:
+The folder the Host gives this Plugin (`plugin-data/anidb/` under the Host's data directory), where the Cache and the Circuit breaker's block live. No Profile sets it; a Worker given none keeps the Cache in memory only.
+_Avoid_: Cache directory, cacheDir, state dir
 
 **Roots**:
 The folders, a Profile-only field, under which `AniDBHashFile` may read files. A path outside every Root is refused.

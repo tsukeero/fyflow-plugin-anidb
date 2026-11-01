@@ -11,7 +11,7 @@ import {
 } from "./fields.ts";
 import { fileByHash } from "./file-ref.ts";
 import { unlessNotFound } from "./not-found.ts";
-import { type SessionFields, session } from "./session.ts";
+import { type SessionConfig, session } from "./session.ts";
 
 const partOf = new Map<string, Part>(
   Object.entries(FILE_FIELDS_BY_PART).flatMap(([part, names]) => names.map((name) => [name, part as Part])),
@@ -56,17 +56,17 @@ function split(answer: Record<string, unknown>, fields: readonly FileField[]) {
 }
 
 export default class IdentifyFile implements Worker<Settings, Input> {
-  readonly #fields: SessionFields;
+  readonly #config: SessionConfig;
 
-  constructor(fields: SessionFields) {
-    this.#fields = fields;
+  constructor(config: SessionConfig) {
+    this.#config = config;
   }
 
   async run({ settings, input }: TaskEnvelope<Settings, Input>, context: WorkerContext) {
     const { ed2k, size } = fileByHash("AniDBIdentifyFile", input);
     const fields = chosenFields("AniDBIdentifyFile", settings.fields, FILE_FIELDS, DEFAULT_FILE_FIELDS);
     const answer = await session().request(
-      this.#fields,
+      this.#config,
       ({ client, cache }) =>
         unlessNotFound(cache, `FILE:s${size}|h${ed2k}`, () =>
           client.file_by_hash(ed2k, size, [...ids, ...fields]),

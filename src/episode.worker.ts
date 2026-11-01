@@ -3,7 +3,7 @@
 import type { TaskEnvelope, Worker, WorkerContext } from "fyflow-plugin-sdk";
 import { isId } from "./ids.ts";
 import { unlessNotFound } from "./not-found.ts";
-import { type SessionFields, session } from "./session.ts";
+import { type SessionConfig, session } from "./session.ts";
 
 type Input = { eid?: unknown; aid?: unknown; epno?: unknown; [field: string]: unknown } | null | undefined;
 type EpisodeRef = { eid: number } | { aid: number; epno: string };
@@ -20,16 +20,16 @@ function episodeOf(input: Input): EpisodeRef {
 }
 
 export default class Episode implements Worker<object, Input> {
-  readonly #fields: SessionFields;
+  readonly #config: SessionConfig;
 
-  constructor(fields: SessionFields) {
-    this.#fields = fields;
+  constructor(config: SessionConfig) {
+    this.#config = config;
   }
 
   async run({ input }: TaskEnvelope<object, Input>, context: WorkerContext) {
     const ref = episodeOf(input);
     const episode = await session().request(
-      this.#fields,
+      this.#config,
       ({ client, cache }) =>
         "eid" in ref
           ? unlessNotFound(cache, `EPISODE:${ref.eid}`, () => client.episode(ref.eid))

@@ -25,8 +25,8 @@ importers:
         specifier: 0.13.0
         version: 0.13.0(fyflow-scheduler@0.6.0)
       fyflow-plugin-sdk:
-        specifier: 0.5.0
-        version: 0.5.0(fyflow-orchestration@0.13.0(fyflow-scheduler@0.6.0))
+        specifier: 0.6.0
+        version: 0.6.0(fyflow-orchestration@0.13.0(fyflow-scheduler@0.6.0))
       typescript:
         specifier: 7.0.2
         version: 7.0.2
@@ -394,8 +394,8 @@ packages:
     peerDependencies:
       fyflow-scheduler: 0.6.0
 
-  fyflow-plugin-sdk@0.5.0:
-    resolution: {integrity: sha512-W31MD+xfCghpl069j6b27ScrIEykqcW2zgUHK+H1OWrgKte/xKGsuN2pRpBIGB1rE9Evovah4mm45f5TbmaGBA==}
+  fyflow-plugin-sdk@0.6.0:
+    resolution: {integrity: sha512-r0RCRaEcCZY6iJJX2l3uKEvo5Zb4YK01O+ieVLF18pK28I8cKhIjugDniQ94Ci+TZbTwRlh95YQ49vepod0FMg==}
     peerDependencies:
       fyflow-orchestration: ^0.13.0
     peerDependenciesMeta:
@@ -845,7 +845,7 @@ snapshots:
       fyflow-scheduler: 0.6.0
       jsonata: 2.2.2
 
-  fyflow-plugin-sdk@0.5.0(fyflow-orchestration@0.13.0(fyflow-scheduler@0.6.0)):
+  fyflow-plugin-sdk@0.6.0(fyflow-orchestration@0.13.0(fyflow-scheduler@0.6.0)):
     optionalDependencies:
       fyflow-orchestration: 0.13.0(fyflow-scheduler@0.6.0)
 

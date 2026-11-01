@@ -1,5 +1,5 @@
 // The Cache: AniDB answers kept so the same data is never asked for twice within its lifetime (ADR-0004). It
-// implements anidb-udp-client's cache interface on node:sqlite, in the Cache directory or in memory, writing as it
+// implements anidb-udp-client's cache interface on node:sqlite, in the Plugin's data directory or in memory, writing as it
 // goes.
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -17,7 +17,7 @@ const DEFAULT_LIFETIME = 7 * DAY;
 
 const lifetime = (key: string) => LIFETIMES[key.split(":", 1)[0] ?? ""] ?? DEFAULT_LIFETIME;
 
-/** The Cache's file in a Cache directory. */
+/** The Cache's file in the Plugin's data directory. */
 export const CACHE_FILE = "anidb-cache.sqlite";
 
 type Cachable = Parameters<AnidbCacheImplType["set"]>[1];

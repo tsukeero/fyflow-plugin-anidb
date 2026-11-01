@@ -23,20 +23,20 @@ const failure = (promise: Promise<unknown>) =>
     (error: Error) => error.message,
   );
 
-let cacheDir: string;
-let alice: { username: string; password: string; udpApiKey: string; cacheDir: string };
+let dataDir: string;
+let alice: { username: string; password: string; udpApiKey: string; host: { dataDir: string } };
 let anidb: FakeAniDB | undefined;
 
 beforeEach(async () => {
-  cacheDir = await mkdtemp(join(tmpdir(), "anidb-account-"));
-  alice = { username: "alice", password: "alice-secret", udpApiKey: "alice-key", cacheDir };
+  dataDir = await mkdtemp(join(tmpdir(), "anidb-account-"));
+  alice = { username: "alice", password: "alice-secret", udpApiKey: "alice-key", host: { dataDir } };
 });
 
 afterEach(async () => {
   await resetSession();
   await anidb?.close();
   anidb = undefined;
-  await rm(cacheDir, { recursive: true, force: true });
+  await rm(dataDir, { recursive: true, force: true });
 });
 
 describe("one account per Host", () => {
@@ -44,7 +44,6 @@ describe("one account per Host", () => {
     ["another account", { username: "bob", password: "bob-secret" }, "username"],
     ["another password", { password: "other-secret" }, "password"],
     ["another UDP API key", { udpApiKey: "other-key" }, "udpApiKey"],
-    ["another Cache directory", { cacheDir: join(tmpdir(), "elsewhere") }, "cacheDir"],
   ])(
     "fails a Task whose Profile names %s at once, naming the Session account, sending nothing",
     async (_, other, field) => {

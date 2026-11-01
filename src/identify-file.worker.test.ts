@@ -22,20 +22,20 @@ const bebop01 =
 const file = (params: Record<string, string>) =>
   params.ed2k === ED2K && params.size === "734003200" ? bebop01 : "320 NO SUCH FILE";
 
-let cacheDir: string;
-let alice: { username: string; password: string; cacheDir: string };
+let dataDir: string;
+let alice: { username: string; password: string; host: { dataDir: string } };
 let anidb: FakeAniDB | undefined;
 
 beforeEach(async () => {
-  cacheDir = await mkdtemp(join(tmpdir(), "anidb-identify-"));
-  alice = { username: "alice", password: "secret", cacheDir };
+  dataDir = await mkdtemp(join(tmpdir(), "anidb-identify-"));
+  alice = { username: "alice", password: "secret", host: { dataDir } };
 });
 
 afterEach(async () => {
   await resetSession();
   await anidb?.close();
   anidb = undefined;
-  await rm(cacheDir, { recursive: true, force: true });
+  await rm(dataDir, { recursive: true, force: true });
 });
 
 describe("AniDBIdentifyFile", () => {

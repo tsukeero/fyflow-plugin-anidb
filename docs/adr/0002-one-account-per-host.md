@@ -1,6 +1,6 @@
 # One AniDB account per Host
 
-With one Session per Host, two Profiles naming different AniDB accounts cannot both be served. The first Profile to open the Session holds it; a Task whose Profile names another account, or other Session-level fields such as the Cache directory, fails saying the Session is held by another account, until the Session disconnects when idle.
+With one Session per Host, two Profiles naming different AniDB accounts cannot both be served. The first Profile to open the Session holds it; a Task whose Profile names another account, or another password or UDP API key, fails saying the Session is held by another account, until the Session disconnects when idle.
 
 ## Considered Options
 

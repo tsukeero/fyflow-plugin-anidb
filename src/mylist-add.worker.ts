@@ -5,7 +5,7 @@ import type { TaskEnvelope, Worker, WorkerContext } from "fyflow-plugin-sdk";
 import { fileRef } from "./file-ref.ts";
 import { MYLIST_STATES, type MyListOptions, type MyListSettings } from "./mylist-settings.ts";
 import { isNotFound } from "./not-found.ts";
-import { type SessionFields, session } from "./session.ts";
+import { type SessionConfig, session } from "./session.ts";
 
 type Input = { [field: string]: unknown } | null | undefined;
 
@@ -22,10 +22,10 @@ const isAlreadyInMyList = (error: unknown): error is AnidbError =>
   error instanceof AnidbError && error.code === RESPONSE_CODE.FILE_ALREADY_IN_MYLIST;
 
 export default class MyListAdd implements Worker<MyListSettings, Input> {
-  readonly #fields: SessionFields;
+  readonly #config: SessionConfig;
 
-  constructor(fields: SessionFields) {
-    this.#fields = fields;
+  constructor(config: SessionConfig) {
+    this.#config = config;
   }
 
   async run({ settings, input }: TaskEnvelope<MyListSettings, Input>, context: WorkerContext) {
@@ -35,7 +35,7 @@ export default class MyListAdd implements Worker<MyListSettings, Input> {
     try {
       // Always an options object: given none, the library sends nothing and answers undefined.
       const added = await session().request(
-        this.#fields,
+        this.#config,
         ({ client }) => client.mylist_add_by_file(file, options),
         context,
       );
@@ -53,7 +53,7 @@ export default class MyListAdd implements Worker<MyListSettings, Input> {
     // Editing by the entry's lid: only the values the settings set change.
     try {
       const edited = await session().request(
-        this.#fields,
+        this.#config,
         ({ client }) => client.mylist_add_by_file({ lid }, options),
         context,
       );

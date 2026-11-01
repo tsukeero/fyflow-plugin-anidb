@@ -18,3 +18,4 @@
 - Reading a block kept in a Cache directory takes it in for the whole Session, as any Task's check does: a Status Task can thus restore a block that then fails other Tasks at once.
 - From review: a login that completes after the Session was shut down now disconnects at once rather than showing as connected.
 - The Node Type keeps the spec's name `AniDBStatus`; the glossary's term for what it returns is the Session snapshot (`SessionSnapshot`).
+- 2026-11-01: superseded by ticket 13. `AniDBStatus` is removed; the Session snapshot is now the Plugin's status (SDK 0.6).

@@ -4,7 +4,7 @@ import type { TaskEnvelope, Worker, WorkerContext } from "fyflow-plugin-sdk";
 import { ANIME_FIELDS, chosenFields, DEFAULT_ANIME_FIELDS } from "./fields.ts";
 import { isId } from "./ids.ts";
 import { unlessNotFound } from "./not-found.ts";
-import { type SessionFields, session } from "./session.ts";
+import { type SessionConfig, session } from "./session.ts";
 
 type Settings = { fields?: string[] };
 type Input = { aid?: unknown; title?: unknown; [field: string]: unknown } | null | undefined;
@@ -25,10 +25,10 @@ function animeOf(input: Input): AnimeRef {
 }
 
 export default class Anime implements Worker<Settings, Input> {
-  readonly #fields: SessionFields;
+  readonly #config: SessionConfig;
 
-  constructor(fields: SessionFields) {
-    this.#fields = fields;
+  constructor(config: SessionConfig) {
+    this.#config = config;
   }
 
   async run({ settings, input }: TaskEnvelope<Settings, Input>, context: WorkerContext) {
@@ -38,7 +38,7 @@ export default class Anime implements Worker<Settings, Input> {
     const key = "aid" in ref ? `ANIME:aid=${ref.aid}` : `ANIME:title=${ref.title}`;
     const fields = chosenFields("AniDBAnime", settings.fields, ANIME_FIELDS, DEFAULT_ANIME_FIELDS);
     const answer = await session().request(
-      this.#fields,
+      this.#config,
       ({ client, cache }) => unlessNotFound(cache, key, () => client.anime(anime, fields)),
       context,
     );

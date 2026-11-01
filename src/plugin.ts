@@ -1,9 +1,10 @@
 // The Plugin's entry. Every Node Type talking to AniDB runs on an inline Session Worker borrowing the Host's one
-// Session (ADR-0001); hashing, which never talks to AniDB, runs threaded.
+// Session (ADR-0001); hashing, which never talks to AniDB, runs threaded. The Plugin's status reports the Session.
 import { CPU_GROUP, DISK_GROUP, definePlugin } from "fyflow-plugin-sdk";
 import { ANIME_FIELDS, FILE_FIELDS, fieldsSchema } from "./fields.ts";
 import { MYLIST_SETTINGS_SCHEMA } from "./mylist-settings.ts";
 import { SESSION_FIELDS } from "./session.ts";
+import { status } from "./status.ts";
 
 // Worker modules sit beside this one: TypeScript in the source, JavaScript once built.
 const moduleExtension = import.meta.url.endsWith(".ts") ? "ts" : "js";
@@ -16,6 +17,9 @@ export default definePlugin({
   id: "anidb",
   version: "0.0.0",
   base: import.meta.url,
+  // The Cache and the Circuit breaker's block are kept in the Host's data directory for this Plugin (ADR-0004).
+  dataDir: true,
+  status,
   profile: {
     schema: {
       type: "object",
@@ -24,8 +28,6 @@ export default definePlugin({
         password: { type: "string", minLength: 1, writeOnly: true },
         // The account's UDP API Key, from its AniDB profile: with one, the Session is encrypted.
         udpApiKey: { type: "string", minLength: 1, writeOnly: true },
-        // Where AniDB's answers are kept, an absolute path: without one they last only as long as the Session.
-        cacheDir: { type: "string", minLength: 1 },
         // The folders AniDBHashFile may read under (ADR-0005): a grant only a Profile may set.
         roots: { type: "array", items: { type: "string", minLength: 1 } },
       },
@@ -37,7 +39,6 @@ export default definePlugin({
   workers: {
     anime: { url: `./anime.worker.${moduleExtension}`, settingsSchema: fieldsSchema(ANIME_FIELDS) },
     episode: { url: `./episode.worker.${moduleExtension}` },
-    status: { url: `./status.worker.${moduleExtension}` },
     hashFile: { url: `./hash-file.worker.${moduleExtension}` },
     identifyFile: {
       url: `./identify-file.worker.${moduleExtension}`,
@@ -87,16 +88,6 @@ export default definePlugin({
       icon: "check",
       description:
         "Adds a file to MyList, by fid or by ed2k and size, leaving an entry already there as it is unless `edit` is set.",
-    },
-    AniDBStatus: {
-      worker: "status",
-      // It never waits: the default pool serves it.
-      inline: true,
-      // Only the Cache directory, for a block kept there: never the account's secrets.
-      profile: ["cacheDir"],
-      icon: "activity",
-      description:
-        "Reports the AniDB Session: its state, account, queue, next send time and any Circuit breaker block.",
     },
     AniDBHashFile: {
       worker: "hashFile",

@@ -9,12 +9,12 @@ import { type FakeAniDB, startFakeAniDB } from "../test/fake-anidb.ts";
 import Anime from "./anime.worker.ts";
 import { resetSession, session } from "./session.ts";
 
-let cacheDir: string;
-let alice: { username: string; password: string; cacheDir: string };
+let dataDir: string;
+let alice: { username: string; password: string; host: { dataDir: string } };
 
 beforeEach(async () => {
-  cacheDir = await mkdtemp(join(tmpdir(), "anidb-cache-"));
-  alice = { username: "alice", password: "secret", cacheDir };
+  dataDir = await mkdtemp(join(tmpdir(), "anidb-cache-"));
+  alice = { username: "alice", password: "secret", host: { dataDir } };
 });
 const task = (aid: number): TaskEnvelope<object, { aid: number }> => ({
   settings: { profile: {} },
@@ -54,7 +54,7 @@ afterEach(async () => {
   await resetSession();
   await anidb?.close();
   anidb = undefined;
-  await rm(cacheDir, { recursive: true, force: true });
+  await rm(dataDir, { recursive: true, force: true });
 });
 
 describe("the Session", () => {
@@ -233,7 +233,7 @@ describe("the Session", () => {
   }, 20_000);
 });
 
-describe("the Cache directory", () => {
+describe("the Plugin's data directory", () => {
   it("keeps answers across Sessions: asked again, they come from the Cache, not AniDB", async () => {
     anidb = await startFakeAniDB({ handlers: { ANIME: anime } });
     await new Anime(alice).run(task(1), context().value);
@@ -269,30 +269,23 @@ describe("the Cache directory", () => {
     await worker.run(task(1), context().value);
 
     expect(anidb.commands()).toEqual(["AUTH", "ANIME"]);
-    expect(first.messages).toContain("AniDB answers will not persist: set `cacheDir` on this Task's Profile");
+    expect(first.messages).toContain(
+      "AniDB answers will not persist: the Host gave this Plugin no data directory",
+    );
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("will not persist"));
     warn.mockRestore();
   }, 20_000);
 
-  it("fails the Task when it is not an absolute path", async () => {
+  it("fails the Task when the Cache cannot be kept there", async () => {
     anidb = await startFakeAniDB({ handlers: { ANIME: anime } });
-
-    const result = settle(new Anime({ ...alice, cacheDir: "cache" }).run(task(1), context().value));
-
-    expect(await result).toContain("`cacheDir`");
-    expect(anidb.received).toEqual([]);
-  });
-
-  it("fails the Task when it cannot be created", async () => {
-    anidb = await startFakeAniDB({ handlers: { ANIME: anime } });
-    const file = join(cacheDir, "a-file");
+    const file = join(dataDir, "a-file");
     await writeFile(file, "");
 
     const result = settle(
-      new Anime({ ...alice, cacheDir: join(file, "cache") }).run(task(1), context().value),
+      new Anime({ ...alice, host: { dataDir: join(file, "data") } }).run(task(1), context().value),
     );
 
-    expect(await result).toContain("`cacheDir`");
+    expect(await result).toContain(`Cannot keep the Cache in ${join(file, "data")}`);
     expect(anidb.received).toEqual([]);
   });
 });
