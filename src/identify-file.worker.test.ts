@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { TaskEnvelope, WorkerContext } from "fyflow-plugin-sdk";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type FakeAniDB, startFakeAniDB } from "../test/fake-anidb.ts";
+import { meets, outputFindings } from "../test/output-schema.ts";
 import IdentifyFile from "./identify-file.worker.ts";
 import { resetSession } from "./session.ts";
 
@@ -45,6 +46,7 @@ describe("AniDBIdentifyFile", () => {
 
     const result = await new IdentifyFile(alice).run(task(input), context());
 
+    expect(outputFindings("AniDBIdentifyFile", result)).toEqual([]);
     expect(result).toEqual({
       path: "/media/bebop-01.mkv",
       size: 734003200,
@@ -77,6 +79,7 @@ describe("AniDBIdentifyFile", () => {
       context(),
     );
 
+    expect(outputFindings("AniDBIdentifyFile", result)).toEqual([]);
     expect(result).toMatchObject({
       found: true,
       file: { fid: 312498 },
@@ -96,6 +99,7 @@ describe("AniDBIdentifyFile", () => {
       context(),
     );
 
+    expect(outputFindings("AniDBIdentifyFile", result)).toEqual([]);
     expect(result).toEqual({
       ed2k: ED2K.toUpperCase(),
       size: 734003200,
@@ -114,8 +118,14 @@ describe("AniDBIdentifyFile", () => {
     const worker = new IdentifyFile(alice);
     const input = { path: "/media/unknown.mkv", ed2k: "0123456789abcdef0123456789abcdef", size: 5 };
 
-    expect(await worker.run(task(input), context())).toEqual({ ...input, found: false });
-    expect(await worker.run(task(input), context())).toEqual({ ...input, found: false });
+    expect(await meets("AniDBIdentifyFile", worker.run(task(input), context()))).toEqual({
+      ...input,
+      found: false,
+    });
+    expect(await meets("AniDBIdentifyFile", worker.run(task(input), context()))).toEqual({
+      ...input,
+      found: false,
+    });
 
     expect(anidb.commands().filter((command) => command === "FILE")).toHaveLength(1);
   }, 20_000);

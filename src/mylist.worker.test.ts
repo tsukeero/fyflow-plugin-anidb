@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { TaskEnvelope, WorkerContext } from "fyflow-plugin-sdk";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type FakeAniDB, startFakeAniDB } from "../test/fake-anidb.ts";
+import { meets, outputFindings } from "../test/output-schema.ts";
 import MyListAdd from "./mylist-add.worker.ts";
 import MyListGet from "./mylist-get.worker.ts";
 import { resetSession } from "./session.ts";
@@ -64,8 +65,16 @@ describe("AniDBMyListGet", () => {
       });
       const worker = new MyListGet(alice);
 
-      expect(await worker.run(task(input), context())).toEqual({ ...input, found: true, entry });
-      expect(await worker.run(task(input), context())).toEqual({ ...input, found: true, entry });
+      expect(await meets("AniDBMyListGet", worker.run(task(input), context()))).toEqual({
+        ...input,
+        found: true,
+        entry,
+      });
+      expect(await meets("AniDBMyListGet", worker.run(task(input), context()))).toEqual({
+        ...input,
+        found: true,
+        entry,
+      });
 
       expect(anidb.commands().filter((command) => command === "MYLIST")).toHaveLength(2);
     },
@@ -76,8 +85,14 @@ describe("AniDBMyListGet", () => {
     anidb = await startFakeAniDB({ handlers: { MYLIST: () => "321 NO SUCH ENTRY" } });
     const worker = new MyListGet(alice);
 
-    expect(await worker.run(task({ fid: 5 }), context())).toEqual({ fid: 5, found: false });
-    expect(await worker.run(task({ fid: 5 }), context())).toEqual({ fid: 5, found: false });
+    expect(await meets("AniDBMyListGet", worker.run(task({ fid: 5 }), context()))).toEqual({
+      fid: 5,
+      found: false,
+    });
+    expect(await meets("AniDBMyListGet", worker.run(task({ fid: 5 }), context()))).toEqual({
+      fid: 5,
+      found: false,
+    });
 
     expect(anidb.commands().filter((command) => command === "MYLIST")).toHaveLength(2);
   }, 30_000);
@@ -104,6 +119,7 @@ describe("AniDBMyListAdd", () => {
       context(),
     );
 
+    expect(outputFindings("AniDBMyListAdd", result)).toEqual([]);
     expect(result).toEqual({ ...input, added: true, lid: 9001 });
     expect(anidb.received.at(-1)?.params).toMatchObject({
       ed2k: ED2K,
@@ -119,11 +135,13 @@ describe("AniDBMyListAdd", () => {
   it("adds a file by fid with no settings", async () => {
     anidb = await startFakeAniDB({ handlers: { MYLISTADD: () => "210 MYLIST ENTRY ADDED\n9002" } });
 
-    expect(await new MyListAdd(alice).run(task({ fid: 312498 }), context())).toEqual({
-      fid: 312498,
-      added: true,
-      lid: 9002,
-    });
+    expect(await meets("AniDBMyListAdd", new MyListAdd(alice).run(task({ fid: 312498 }), context()))).toEqual(
+      {
+        fid: 312498,
+        added: true,
+        lid: 9002,
+      },
+    );
     expect(anidb.received.at(-1)?.params).toMatchObject({ fid: "312498" });
   }, 20_000);
 
@@ -132,7 +150,9 @@ describe("AniDBMyListAdd", () => {
     const worker = new MyListAdd(alice);
 
     for (let run = 0; run < 2; run++)
-      expect(await worker.run(task({ fid: 312498 }, { viewed: true }), context())).toEqual({
+      expect(
+        await meets("AniDBMyListAdd", worker.run(task({ fid: 312498 }, { viewed: true }), context())),
+      ).toEqual({
         fid: 312498,
         added: false,
         lid: 9001,
@@ -157,6 +177,7 @@ describe("AniDBMyListAdd", () => {
       context(),
     );
 
+    expect(outputFindings("AniDBMyListAdd", result)).toEqual([]);
     expect(result).toEqual({ fid: 312498, added: false, edited: true, lid: 9001 });
     expect(anidb.received.at(-1)?.params).toMatchObject({ lid: "9001", edit: "1", state: "3", viewed: "0" });
   }, 30_000);
@@ -172,7 +193,12 @@ ${ENTRY}`,
       },
     });
 
-    expect(await new MyListAdd(alice).run(task({ fid: 312498 }, { edit: true }), context())).toEqual({
+    expect(
+      await meets(
+        "AniDBMyListAdd",
+        new MyListAdd(alice).run(task({ fid: 312498 }, { edit: true }), context()),
+      ),
+    ).toEqual({
       fid: 312498,
       added: false,
       found: false,
@@ -182,7 +208,12 @@ ${ENTRY}`,
   it("with `edit`, adds a file not yet in MyList", async () => {
     anidb = await startFakeAniDB({ handlers: { MYLISTADD: () => "210 MYLIST ENTRY ADDED\n9003" } });
 
-    expect(await new MyListAdd(alice).run(task({ fid: 312498 }, { edit: true }), context())).toEqual({
+    expect(
+      await meets(
+        "AniDBMyListAdd",
+        new MyListAdd(alice).run(task({ fid: 312498 }, { edit: true }), context()),
+      ),
+    ).toEqual({
       fid: 312498,
       added: true,
       lid: 9003,
@@ -194,7 +225,7 @@ ${ENTRY}`,
     anidb = await startFakeAniDB({ handlers: { MYLISTADD: () => "320 NO SUCH FILE" } });
     const input = { ed2k: ED2K, size: 5 };
 
-    expect(await new MyListAdd(alice).run(task(input), context())).toEqual({
+    expect(await meets("AniDBMyListAdd", new MyListAdd(alice).run(task(input), context()))).toEqual({
       ...input,
       added: false,
       found: false,

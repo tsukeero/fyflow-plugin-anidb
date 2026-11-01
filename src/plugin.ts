@@ -11,6 +11,14 @@ import {
   MYLIST_GET_INPUT,
 } from "./inputs.ts";
 import { MYLIST_SETTINGS_SCHEMA } from "./mylist-settings.ts";
+import {
+  ANIME_OUTPUT,
+  EPISODE_OUTPUT,
+  HASH_FILE_OUTPUT,
+  IDENTIFY_FILE_OUTPUT,
+  MYLIST_ADD_OUTPUT,
+  MYLIST_GET_OUTPUT,
+} from "./outputs.ts";
 import { SESSION_FIELDS } from "./session.ts";
 import { status } from "./status.ts";
 
@@ -49,19 +57,34 @@ export default definePlugin({
       url: `./anime.worker.${moduleExtension}`,
       settingsSchema: fieldsSchema(ANIME_FIELDS),
       inputSchema: ANIME_INPUT,
+      outputSchema: ANIME_OUTPUT,
     },
-    episode: { url: `./episode.worker.${moduleExtension}`, inputSchema: EPISODE_INPUT },
-    hashFile: { url: `./hash-file.worker.${moduleExtension}`, inputSchema: HASH_FILE_INPUT },
+    episode: {
+      url: `./episode.worker.${moduleExtension}`,
+      inputSchema: EPISODE_INPUT,
+      outputSchema: EPISODE_OUTPUT,
+    },
+    hashFile: {
+      url: `./hash-file.worker.${moduleExtension}`,
+      inputSchema: HASH_FILE_INPUT,
+      outputSchema: HASH_FILE_OUTPUT,
+    },
     identifyFile: {
       url: `./identify-file.worker.${moduleExtension}`,
       settingsSchema: fieldsSchema(FILE_FIELDS),
       inputSchema: IDENTIFY_FILE_INPUT,
+      outputSchema: IDENTIFY_FILE_OUTPUT,
     },
-    myListGet: { url: `./mylist-get.worker.${moduleExtension}`, inputSchema: MYLIST_GET_INPUT },
+    myListGet: {
+      url: `./mylist-get.worker.${moduleExtension}`,
+      inputSchema: MYLIST_GET_INPUT,
+      outputSchema: MYLIST_GET_OUTPUT,
+    },
     myListAdd: {
       url: `./mylist-add.worker.${moduleExtension}`,
       settingsSchema: MYLIST_SETTINGS_SCHEMA,
       inputSchema: MYLIST_ADD_INPUT,
+      outputSchema: MYLIST_ADD_OUTPUT,
     },
   },
   nodeTypes: {

@@ -1,6 +1,7 @@
 import type { TaskEnvelope, WorkerContext } from "fyflow-plugin-sdk";
 import { afterEach, describe, expect, it } from "vitest";
 import { type FakeAniDB, startFakeAniDB } from "../test/fake-anidb.ts";
+import { meets, outputFindings } from "../test/output-schema.ts";
 import Anime from "./anime.worker.ts";
 import { resetSession } from "./session.ts";
 
@@ -31,6 +32,7 @@ describe("AniDBAnime", () => {
 
     const result = await worker.run(task({ aid: 1 }), context());
 
+    expect(outputFindings("AniDBAnime", result)).toEqual([]);
     expect(result).toEqual({
       aid: 1,
       found: true,
@@ -62,6 +64,7 @@ describe("AniDBAnime", () => {
 
     const result = await worker.run(task({ aid: 1 }), context());
 
+    expect(outputFindings("AniDBAnime", result)).toEqual([]);
     expect(result).toMatchObject({ found: true, anime: { romanji_name: "Cowboy Bebop" } });
     expect(anidb.commands()).toEqual(["ENCRYPT", "AUTH", "ANIME"]);
   }, 20_000);
@@ -84,6 +87,7 @@ describe("AniDBAnime", () => {
 
     const result = await new Anime(alice).run(task({ title: "Cowboy Bebop", path: "/media" }), context());
 
+    expect(outputFindings("AniDBAnime", result)).toEqual([]);
     expect(result).toMatchObject({
       title: "Cowboy Bebop",
       path: "/media",
@@ -100,6 +104,7 @@ describe("AniDBAnime", () => {
 
     const result = await worker.run(task({ aid: 1 }, { fields: ["romanji_name"] }), context());
 
+    expect(outputFindings("AniDBAnime", result)).toEqual([]);
     expect(result).toEqual({ aid: 1, found: true, anime: { aid: 1, romanji_name: "Cowboy Bebop" } });
     expect(anidb.commands().filter((command) => command === "ANIME")).toHaveLength(1);
   }, 20_000);
@@ -109,7 +114,10 @@ describe("AniDBAnime", () => {
     const worker = new Anime(alice);
 
     for (const input of [{ aid: 2 }, { aid: 2 }, { title: "Nope" }])
-      expect(await worker.run(task(input), context())).toEqual({ ...input, found: false });
+      expect(await meets("AniDBAnime", worker.run(task(input), context()))).toEqual({
+        ...input,
+        found: false,
+      });
 
     expect(anidb.commands().filter((command) => command === "ANIME")).toHaveLength(2);
   }, 30_000);

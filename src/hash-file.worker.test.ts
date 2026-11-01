@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 import type { TaskEnvelope, WorkerContext } from "fyflow-plugin-sdk";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { meets, outputFindings } from "../test/output-schema.ts";
 import HashFile from "./hash-file.worker.ts";
 
 const CHUNK = 9_728_000;
@@ -73,13 +74,18 @@ describe("AniDBHashFile", () => {
 
     const result = await new HashFile().run(task(path, [root]), context().value);
 
+    expect(outputFindings("AniDBHashFile", result)).toEqual([]);
     expect(result).toEqual({ path, size, ed2k });
   });
 
   it.each(zeroVectors)("hashes %s as AniDB's wiki publishes it", async (_name, size, ed2k) => {
     const path = join(root, `zeros-${size}.bin`);
 
-    expect(await new HashFile().run(task(path, [root]), context().value)).toEqual({ path, size, ed2k });
+    expect(await meets("AniDBHashFile", new HashFile().run(task(path, [root]), context().value))).toEqual({
+      path,
+      size,
+      ed2k,
+    });
   });
 
   it("reports progress by bytes read", async () => {
@@ -112,6 +118,7 @@ describe("AniDBHashFile", () => {
 
     const result = await new HashFile().run(task(path, [root]), context().value);
 
+    expect(outputFindings("AniDBHashFile", result)).toEqual([]);
     expect(result).toEqual({ path, size: 1000, ed2k: "9a27d966bf4984d8597862b1c33bfbba" });
   });
 

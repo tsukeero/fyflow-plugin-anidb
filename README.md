@@ -33,9 +33,10 @@ On a server Host you can instead copy the folder into the Plugin directory, with
 ## Node Types
 
 Each Node Type's input is the Task input: the Run's input for the first Node of a Flow, the Node before it's result
-after that. Every Node Type also declares it as an input schema, with examples, which the editor and Agents see. Where
-a Node Type takes one of two forms, the first one present wins. The AniDB Node Types return their input with their
-answer added, so later Nodes still know which file or anime it was.
+after that. Every Node Type also declares its input and its result as schemas, with an example of each form and each
+outcome, which the editor and Agents see: the editor suggests a result's paths (`found`, `added`, `anime.aid`) for an
+Edge's condition. Where a Node Type takes one of two forms, the first one present wins. The AniDB Node Types return
+their input with their answer added, so later Nodes still know which file or anime it was.
 
 | Node Type | Input | Result |
 | --- | --- | --- |

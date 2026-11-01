@@ -147,6 +147,17 @@ describe("the Plugin", () => {
     expect(schemaProblem(schema)).toBeNull();
   });
 
+  const outputSchemaOf = (name: string) =>
+    plugin.workers?.[plugin.nodeTypes?.[name]?.worker ?? ""]?.outputSchema as InputSchema | undefined;
+
+  it.each(nodeTypeNames)("says what %s returns, with examples, in a schema fyflow takes", (name) => {
+    const schema = outputSchemaOf(name);
+    expect(schema).toMatchObject({ type: "object", description: expect.any(String) });
+    expect(schema?.examples?.length).toBeGreaterThan(0);
+    expect(schemaProblem(schema)).toBeNull();
+    expect(schema?.additionalProperties).not.toBe(false);
+  });
+
   it.each(nodeTypeNames)("lets %s's input carry other fields, for the Nodes after it", (name) => {
     expect(inputSchemaOf(name)?.additionalProperties).not.toBe(false);
   });

@@ -1,6 +1,7 @@
 import type { TaskEnvelope, WorkerContext } from "fyflow-plugin-sdk";
 import { afterEach, describe, expect, it } from "vitest";
 import { type FakeAniDB, startFakeAniDB } from "../test/fake-anidb.ts";
+import { meets } from "../test/output-schema.ts";
 import Episode from "./episode.worker.ts";
 import { resetSession } from "./session.ts";
 
@@ -47,7 +48,11 @@ describe("AniDBEpisode", () => {
   ])("returns an episode by %s, keeping the rest of its input", async (_, input) => {
     anidb = await startFakeAniDB({ handlers: { EPISODE: bebop } });
 
-    expect(await new Episode(alice).run(task(input), context())).toEqual({ ...input, found: true, episode });
+    expect(await meets("AniDBEpisode", new Episode(alice).run(task(input), context()))).toEqual({
+      ...input,
+      found: true,
+      episode,
+    });
   });
 
   it("says Not found for an episode AniDB does not know, and remembers it", async () => {
@@ -55,7 +60,10 @@ describe("AniDBEpisode", () => {
     const worker = new Episode(alice);
 
     for (const input of [{ eid: 99 }, { eid: 99 }, { aid: 1, epno: "S1" }])
-      expect(await worker.run(task(input), context())).toEqual({ ...input, found: false });
+      expect(await meets("AniDBEpisode", worker.run(task(input), context()))).toEqual({
+        ...input,
+        found: false,
+      });
 
     expect(anidb.commands().filter((command) => command === "EPISODE")).toHaveLength(2);
   }, 30_000);
