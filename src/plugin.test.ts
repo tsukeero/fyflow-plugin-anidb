@@ -22,6 +22,11 @@ describe("the Plugin", () => {
     expect(plugin.profile?.startup).toEqual(expect.arrayContaining(["username", "password", "udpApiKey"]));
   });
 
+  it("carries its package's version", async () => {
+    const { default: manifest } = await import("../package.json", { with: { type: "json" } });
+    expect(plugin.version).toBe(manifest.version);
+  });
+
   it("asks the Host for a data directory to keep its Cache in, so no Profile sets one", () => {
     expect(plugin.dataDir).toBe(true);
     expect(property("cacheDir")).toBeUndefined();
