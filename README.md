@@ -11,31 +11,25 @@ AniDBMyListAdd, each Node's result being the next one's input.
 
 ## Develop
 
-Needs Node 26 (`.node-version`) and pnpm.
+Needs Node 26 (`.node-version`) and npm.
 
 ```sh
-pnpm install
-pnpm check   # typecheck, lint, test
-pnpm build   # makes the Plugin folder dist/anidb/
-pnpm smoke   # runs that folder in a Host from ../fyflow-app, against a fake AniDB
+npm install
+npm run check   # typecheck, lint, test
+npm run build   # makes the Plugin folder dist/anidb/
+npm run smoke   # runs that folder in a Host from ../fyflow-app, against a fake AniDB
 ```
 
-`pnpm check` also runs the tests under Deno (`pnpm test:deno`), so it needs Deno 2 on the PATH. Tests talk only to
-a fake AniDB on localhost, never to the real one.
+`npm run check` also runs the tests under Deno (`npm run test:deno`), so it needs Deno 2 on the PATH. Tests talk only
+to a fake AniDB on localhost, never to the real one.
 
-### Two lockfiles
+### The lockfile
 
-pnpm is the development tool (`pnpm-lock.yaml`), but a Host installs the Plugin's dependencies with npm, from the
-`npm-shrinkwrap.json` that `fyflow-plugin pack` writes from the Plugin folder's `package-lock.json`. So the repository
-keeps an npm `package-lock.json` too, and `pnpm build` derives the Plugin folder's from it: the same versions, with
-the dependencies, the SDK as a peer (npm requires it in the lockfile; a Host's `npm ci --omit=peer` leaves it out), and
-no development tools.
-
-Keep them in step: after adding, removing or updating a dependency with pnpm, run `pnpm lock:npm` (npm resolves in a
-temporary copy, since pnpm's `node_modules` confuses it, and keeps the versions it already has) and commit both files.
-`pnpm build` refuses lockfiles that disagree: a `package-lock.json` without `package.json`'s ranges, or with another
-version of a dependency than pnpm installed. If npm picks a newer version than pnpm has, `pnpm update <name>` brings
-pnpm to it, so the versions tested are the versions shipped.
+A Host installs the Plugin's dependencies with npm, from the `npm-shrinkwrap.json` that `fyflow-plugin pack` writes
+from the Plugin folder's `package-lock.json`. `npm run build` derives that one from the repository's: the same
+versions, with the dependencies, the SDK as a peer (npm requires it in the lockfile; a Host's `npm ci --omit=peer`
+leaves it out), and no development tools. So the versions tested are the versions shipped. The build refuses a
+`package-lock.json` out of step with `package.json` or with `node_modules`: run `npm install`.
 
 ## Release
 
@@ -47,7 +41,7 @@ index, using the `FYFLOW_PLUGINS_TOKEN` secret (a classic token with `public_rep
 `fyflow.icon`, `description` and `homepage`. CI's `pack` job checks every push packs the same way.
 
 1. Set the version in `package.json` and in `src/plugin.ts` (they must agree), and commit.
-2. Check it packs and installs: `pnpm build`, then `npx -p fyflow-plugin-sdk@^0.10.0 fyflow-plugin pack --out <dir>`
+2. Check it packs and installs: `npm run build`, then `npx -p fyflow-plugin-sdk@^0.10.0 fyflow-plugin pack --out <dir>`
    in `dist/anidb`, and upload the tarball on a Host's Plugins page (`FYFLOW_PLUGINS_INSTALL=any`).
 3. `git tag fyflow-ext.anidb@<version> && git push origin fyflow-ext.anidb@<version>`, and watch the PR the run's
    summary links: `gh pr checks <url> --repo fyflow/fyflow-plugins --watch`.
@@ -56,7 +50,7 @@ A published version never changes: to fix one, release the next.
 
 ## Install
 
-Run `pnpm build` and pick `dist/anidb` with **Choose folder…** on the app's Plugins page. The folder holds what a Host
+Run `npm run build` and pick `dist/anidb` with **Choose folder…** on the app's Plugins page. The folder holds what a Host
 loads and nothing else: the compiled JavaScript, a package.json, and the Plugin's dependencies (`anidb-udp-client`,
 `hash-wasm` and theirs) copied as files into its own `node_modules`, because the app's installer copies a folder
 whole, runs no package manager and refuses a link. The Host provides the SDK.

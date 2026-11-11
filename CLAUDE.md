@@ -11,14 +11,14 @@ A fyflow-app **Plugin** for AniDB's UDP API, built on [anidb-udp-client](https:/
 
 ## Rules
 
-- **Ship JavaScript.** A Host does not strip TypeScript under `node_modules`, so `pnpm build` compiles `src/` into the Plugin folder `dist/anidb/` and completes it (a package.json, the dependencies copied as files, never links) so the app can install it with "Choose folder…"; `package.json` `exports` point there.
+- **Ship JavaScript.** A Host does not strip TypeScript under `node_modules`, so `npm run build` compiles `src/` into the Plugin folder `dist/anidb/` and completes it (a package.json, the dependencies copied as files, never links) so the app can install it with "Choose folder…"; `package.json` `exports` point there.
 - **The SDK is a peer, never bundled.** Import it for types (`import type`) wherever possible: the Host provides it at run time.
 - **Runtime-neutral where the Host is.** A Host runs on Node 26 and on Deno; anything a Worker uses has to work on both, or the gap is stated.
 - **Never commit AniDB credentials.** They belong in Profile secrets (`writeOnly`), and test credentials in `.env`, which git ignores.
 
 ## Code conventions
 
-Same as fyflow-app: TypeScript strict, ESM only, relative imports with `.ts` extensions (rewritten to `.js` on build), erasable syntax only (no `enum`, `namespace`, or constructor parameter properties). Biome formats and lints. Node 26 is pinned in `.node-version`. Name domain concepts with fyflow-app's `GLOSSARY.md` terms (Node Type, Worker, Profile, Task…) and this repo's own `GLOSSARY.md` once it exists.
+Same as fyflow-app: TypeScript strict, ESM only, relative imports with `.ts` extensions (rewritten to `.js` on build), erasable syntax only (no `enum`, `namespace`, or constructor parameter properties). Biome formats and lints. Node 26 is pinned in `.node-version`. Unlike fyflow-app, this repo uses npm, not pnpm: a Host installs the Plugin's dependencies with npm, from a lockfile derived from `package-lock.json`, so one lockfile serves both. Name domain concepts with fyflow-app's `GLOSSARY.md` terms (Node Type, Worker, Profile, Task…) and this repo's own `GLOSSARY.md` once it exists.
 
 ## Agent skills
 

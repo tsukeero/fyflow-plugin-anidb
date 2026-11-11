@@ -1,4 +1,4 @@
-// Preloaded into the Host `pnpm smoke` starts (`node --import`, `deno run --preload`): sends meant for AniDB go to the
+// Preloaded into the Host `npm run smoke` starts (`node --import`, `deno run --preload`): sends meant for AniDB go to the
 // smoke's fake AniDB, named by the environment. Refuses to let the Host start without one, so a smoke never reaches the
 // real AniDB.
 import process from "node:process";

@@ -1,4 +1,4 @@
-// Checks what `pnpm build` wrote is a Plugin folder a Host can install and load: JavaScript only, no link (the app's
+// Checks what `npm run build` wrote is a Plugin folder a Host can install and load: JavaScript only, no link (the app's
 // installer refuses one), an entry the package's own name resolves to, with the Plugin's shape, every Worker module it
 // names present with a default export class, and each dependency loaded from the folder's own node_modules.
 import { lstat, readdir, readFile } from "node:fs/promises";
@@ -16,7 +16,7 @@ for (const file of await readdir(PLUGIN_FOLDER, { recursive: true })) {
     problems.push(`TypeScript in the Plugin folder: ${file}`);
 }
 
-// The package by its own name, as a Host resolves it: built by `pnpm build`, so not there for a typecheck before it.
+// The package by its own name, as a Host resolves it: built by `npm run build`, so not there for a typecheck before it.
 const entry: string = "fyflow-plugin-anidb";
 const { default: plugin } = await import(entry);
 if (typeof plugin?.id !== "string" || typeof plugin.base !== "string")

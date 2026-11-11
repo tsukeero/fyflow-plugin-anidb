@@ -1,7 +1,7 @@
-// `pnpm smoke`: before a release, prove the built Plugin folder works in a real Host. Builds it, copies it whole into
+// `npm run smoke`: before a release, prove the built Plugin folder works in a real Host. Builds it, copies it whole into
 // a temporary Plugin directory as the app's installer does, with the SDK beside it as a server Host has it, starts a
 // Host from ../fyflow-app on it (Node 26, then Deno) with a Profile pointing at a fake AniDB, and runs a Flow hash →
-// identify → MyList add. Local only: fyflow-app is not on npm, so this is not part of `pnpm check` or CI.
+// identify → MyList add. Local only: fyflow-app is not on npm, so this is not part of `npm run check` or CI.
 import { type ChildProcess, execSync, spawn } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -29,7 +29,7 @@ const run = (command: string, args: string[], cwd: string) =>
 
 /** Builds the Plugin folder, and copies it into a new Plugin directory with the SDK beside it. */
 function pluginDirectory(work: string): string {
-  run("pnpm", ["build"], ROOT);
+  run("npm", ["run", "build"], ROOT);
   const sdk = JSON.parse(
     readFileSync(join(ROOT, "node_modules", "fyflow-plugin-sdk", "package.json"), "utf8"),
   );

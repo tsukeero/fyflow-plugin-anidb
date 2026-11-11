@@ -1,7 +1,6 @@
 // Completes `dist/anidb/`, which `tsc` has compiled `src/` into, as the Plugin folder a Host loads: a package.json of
 // its own, the README, the Plugin's dependencies under its own node_modules, copied as files, and a package-lock.json
-// for them. It is the folder to pick with "Choose folder…" in the app, which refuses a folder holding a link (pnpm's
-// node_modules is made of them), and the folder `fyflow-plugin pack` packs: npm leaves the node_modules out of the
+// for them. It is the folder to pick with "Choose folder…" in the app, which refuses a folder holding a link, and the folder `fyflow-plugin pack` packs: npm leaves the node_modules out of the
 // tarball, and pack turns the package-lock.json into the npm-shrinkwrap.json a Host installs them from. The SDK stays
 // out: the Host provides it.
 import { cp, readFile, realpath, stat, writeFile } from "node:fs/promises";
@@ -47,13 +46,13 @@ async function packageDir(name: string, from: string): Promise<string> {
   for (let dir = from; ; dir = dirname(dir)) {
     const candidate = join(dir, "node_modules", name);
     if (await exists(join(candidate, "package.json"))) return realpath(candidate);
-    if (dirname(dir) === dir) throw new Error(`Cannot find ${name} from ${from}: run \`pnpm install\``);
+    if (dirname(dir) === dir) throw new Error(`Cannot find ${name} from ${from}: run \`npm install\``);
   }
 }
 
 /**
- * Copies `names` and everything they depend on, flat, into `to/node_modules`, each followed through pnpm's links to
- * its files. Two versions of one package would need nesting, which none of ours has: that fails instead.
+ * Copies `names` and everything they depend on, flat, into `to/node_modules`, each followed through any link to its
+ * files. Two versions of one package would need nesting, which none of ours has: that fails instead.
  */
 async function copyDependencies(names: string[], from: string, to: string) {
   const copied = new Map<string, string>();
@@ -96,7 +95,7 @@ function lockClosure(packages: Lock["packages"], names: string[]): Set<string> {
     const path = resolveInLock(packages, name, from);
     if (path === undefined) {
       if (required)
-        throw new Error(`package-lock.json has no ${name} for ${from || "the root"}: run \`pnpm lock:npm\``);
+        throw new Error(`package-lock.json has no ${name} for ${from || "the root"}: run \`npm install\``);
       return;
     }
     if (found.has(path)) return;
@@ -112,11 +111,10 @@ function lockClosure(packages: Lock["packages"], names: string[]): Set<string> {
 }
 
 /**
- * The Plugin folder's package-lock.json, from the repository's (which `pnpm lock:npm` writes beside pnpm-lock.yaml): the
- * same versions, for the folder's package.json alone. The dependencies and what they need are kept, and the SDK and
+ * The Plugin folder's package-lock.json, from the repository's: the same versions, for the folder's package.json alone. The dependencies and what they need are kept, and the SDK and
  * what it needs as peers, which a Host's `npm ci --omit=peer` requires in the lockfile but does not install; the
  * development tools are left out. It refuses a lockfile that has fallen out of step with package.json, or whose
- * versions are not the ones pnpm installed (`installed`), which are the ones tested and copied into the folder.
+ * versions are not the ones installed (`installed`), which are the ones tested and copied into the folder.
  */
 async function pluginLock(manifest: Manifest, installed: Map<string, string>): Promise<Lock> {
   const lock: Lock = JSON.parse(await readFile(join(root, "package-lock.json"), "utf8"));
@@ -127,14 +125,14 @@ async function pluginLock(manifest: Manifest, installed: Map<string, string>): P
     !same(rootEntry.dependencies, manifest.dependencies) ||
     !same(rootEntry.peerDependencies, manifest.peerDependencies)
   )
-    throw new Error("package-lock.json does not have package.json's dependencies: run `pnpm lock:npm`");
+    throw new Error("package-lock.json does not have package.json's dependencies: run `npm install`");
   const dependencies = lockClosure(packages, Object.keys(manifest.dependencies ?? {}));
   const peers = lockClosure(packages, Object.keys(manifest.peerDependencies ?? {}));
   for (const [name, version] of installed) {
     const locked = packages[`node_modules/${name}`]?.version;
     if (locked !== version)
       throw new Error(
-        `pnpm installed ${name}@${version}, package-lock.json has ${name}@${locked}: run \`pnpm lock:npm\`, or \`pnpm update ${name}\``,
+        `node_modules has ${name}@${version}, package-lock.json ${name}@${locked}: run \`npm install\``,
       );
   }
   const { name, version, license, dependencies: deps, peerDependencies, engines } = manifest;
