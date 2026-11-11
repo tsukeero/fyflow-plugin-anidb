@@ -56,7 +56,7 @@ The persistent store of AniDB answers the Session keeps in the Plugin's data dir
 _Avoid_: store, database
 
 **Data directory**:
-The folder the Host gives this Plugin (`plugin-data/anidb/` under the Host's data directory), where the Cache and the Circuit breaker's block live. No Profile sets it; a Worker given none keeps the Cache in memory only.
+The folder the Host gives this Plugin (`plugin-data/fyflow-ext.anidb/` under the Host's data directory), where the Cache and the Circuit breaker's block live. No Profile sets it; a Worker given none keeps the Cache in memory only.
 _Avoid_: Cache directory, cacheDir, state dir
 
 **Roots**:

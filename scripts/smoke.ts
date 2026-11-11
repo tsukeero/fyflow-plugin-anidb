@@ -123,14 +123,14 @@ async function smoke(runtime: "node" | "deno", work: string, pluginDir: string) 
     const base = await host.url;
 
     const { plugins, skipped } = await api(base, "GET", "/api/plugins");
-    const plugin = plugins.find((p: { id: string }) => p.id === "anidb");
+    const plugin = plugins.find((p: { id: string }) => p.id === "fyflow-ext.anidb");
     check(plugin !== undefined, `the Host did not load the Plugin: ${JSON.stringify(skipped)}`);
     check(plugin.warnings.length === 0, `the Plugin has warnings: ${JSON.stringify(plugin.warnings)}`);
     for (const name of ["AniDBHashFile", "AniDBIdentifyFile", "AniDBMyListAdd"])
       check(JSON.stringify(plugin.nodeTypes).includes(name), `the Plugin has no ${name}`);
     check(plugin.hasStatus === true, "the Host shows no status for the Plugin");
 
-    await api(base, "PUT", "/api/profiles/default/sections/anidb", {
+    await api(base, "PUT", "/api/profiles/default/sections/fyflow-ext.anidb", {
       values: {
         username: "smoke",
         password: "smoke-secret",
@@ -166,10 +166,10 @@ async function smoke(runtime: "node" | "deno", work: string, pluginDir: string) 
     check(anidb.received[1]?.params.size === "1000", "identify asked for another size");
 
     // The Cache is in the data directory the Host gives the Plugin, and its status shows the Session.
-    const cache = join(hostDataDir(work, runtime), "plugin-data", "anidb", "anidb-cache.sqlite");
+    const cache = join(hostDataDir(work, runtime), "plugin-data", "fyflow-ext.anidb", "anidb-cache.sqlite");
     check(existsSync(cache), `the Cache is not in the Host's data directory: no ${cache}`);
     const { statuses } = await api(base, "GET", "/api/plugins/status");
-    const status = statuses.find((s: { id: string }) => s.id === "anidb")?.status;
+    const status = statuses.find((s: { id: string }) => s.id === "fyflow-ext.anidb")?.status;
     check(
       status?.level === "ok" && status.summary === "Logged in to AniDB as smoke · 0 queued",
       `the Plugin's status is ${JSON.stringify(status)}`,

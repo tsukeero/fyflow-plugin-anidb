@@ -8,6 +8,12 @@
     "fyflow-plugin",
     "anidb"
   ],
+  "homepage": "https://github.com/tsukeero/fyflow-plugin-anidb#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tsukeero/fyflow-plugin-anidb.git"
+  },
+  "bugs": "https://github.com/tsukeero/fyflow-plugin-anidb/issues",
   "type": "module",
   "license": "MIT",
   "packageManager": "pnpm@10.12.1",
@@ -19,6 +25,7 @@
   },
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json && node scripts/plugin-folder.ts",
+    "lock:npm": "node scripts/npm-lock.ts",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "biome check .",
     "format": "biome check --write .",
@@ -33,7 +40,7 @@
   },
   "dependencies": {
     "anidb-udp-client": "^2.0.2",
-    "hash-wasm": "^4.12.0"
+    "hash-wasm": "^4.13.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
@@ -42,5 +49,11 @@
     "fyflow-plugin-sdk": "0.6.0",
     "typescript": "7.0.2",
     "vitest": "5.0.4"
+  },
+  "fyflow": {
+    "name": "AniDB",
+    "icon": "database",
+    "build": "pnpm build",
+    "pack": "dist/anidb"
   }
 }

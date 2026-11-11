@@ -14,7 +14,7 @@ const property = (name: string) => (plugin.profile?.schema as Schema | undefined
 
 describe("the Plugin", () => {
   it("declares the AniDB account on the Profile, with the password and UDP API key as secrets", () => {
-    expect(plugin.id).toBe("anidb");
+    expect(plugin.id).toBe("fyflow-ext.anidb");
     expect(property("username")).toMatchObject({ type: "string" });
     expect(property("username")?.writeOnly).toBeUndefined();
     expect(property("password")).toMatchObject({ type: "string", writeOnly: true });

@@ -37,3 +37,7 @@ jobs:
           deno-version: v2.x
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:deno
+
+  pack:
+    name: Pack (as the release workflow does)
+    uses: fyflow/fyflow-plugins/.github/workflows/check-plugin.yml@v1

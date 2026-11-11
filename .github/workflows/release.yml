@@ -1,0 +1,14 @@
+# Releases the Plugin into the official fyflow Plugin repository on a tag `<id>@<version>` (fyflow-ext.anidb@0.0.4):
+# fyflow-plugins' reusable workflow builds it (`fyflow.build` in package.json), packs `fyflow.pack`, makes a GitHub
+# Release with the tarball, and opens the PR adding the version to fyflow/fyflow-plugins.
+name: Release
+on:
+  push:
+    tags: ["*@*"] # <id>@<version>
+jobs:
+  release:
+    permissions:
+      contents: write # the GitHub Release
+    uses: fyflow/fyflow-plugins/.github/workflows/release-plugin.yml@v1
+    secrets:
+      FYFLOW_PLUGINS_TOKEN: ${{ secrets.FYFLOW_PLUGINS_TOKEN }}

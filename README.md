@@ -3,6 +3,9 @@
 A [fyflow-app](https://www.npmjs.com/package/fyflow-plugin-sdk) Plugin for [AniDB](https://anidb.net)'s UDP API, built on
 [anidb-udp-client](https://www.npmjs.com/package/anidb-udp-client).
 
+Its Plugin id is `fyflow-ext.anidb`: Flows record it, and the Host keeps its data under `plugin-data/fyflow-ext.anidb/`.
+(Builds before the first release used `anidb`: a Flow saved with one names a Plugin that no longer exists.)
+
 A Flow typically hashes a file, identifies it, then adds it to MyList: AniDBHashFile → AniDBIdentifyFile →
 AniDBMyListAdd, each Node's result being the next one's input.
 
@@ -19,6 +22,37 @@ pnpm smoke   # runs that folder in a Host from ../fyflow-app, against a fake Ani
 
 `pnpm check` also runs the tests under Deno (`pnpm test:deno`), so it needs Deno 2 on the PATH. Tests talk only to
 a fake AniDB on localhost, never to the real one.
+
+### Two lockfiles
+
+pnpm is the development tool (`pnpm-lock.yaml`), but a Host installs the Plugin's dependencies with npm, from the
+`npm-shrinkwrap.json` that `fyflow-plugin pack` writes from the Plugin folder's `package-lock.json`. So the repository
+keeps an npm `package-lock.json` too, and `pnpm build` derives the Plugin folder's from it: the same versions, with
+the dependencies, the SDK as a peer (npm requires it in the lockfile; a Host's `npm ci --omit=peer` leaves it out), and
+no development tools.
+
+Keep them in step: after adding, removing or updating a dependency with pnpm, run `pnpm lock:npm` (npm resolves in a
+temporary copy, since pnpm's `node_modules` confuses it, and keeps the versions it already has) and commit both files.
+`pnpm build` refuses lockfiles that disagree: a `package-lock.json` without `package.json`'s ranges, or with another
+version of a dependency than pnpm installed. If npm picks a newer version than pnpm has, `pnpm update <name>` brings
+pnpm to it, so the versions tested are the versions shipped.
+
+## Release
+
+The Plugin is released into the official fyflow Plugin repository,
+[fyflow/fyflow-plugins](https://github.com/fyflow/fyflow-plugins), by `.github/workflows/release.yml`, which calls its
+reusable workflow on a tag `<id>@<version>`. That workflow builds the Plugin (`fyflow.build` in package.json), packs
+`dist/anidb` (`fyflow.pack`), creates a GitHub Release with the tarball, and opens the PR adding the version to the
+index, using the `FYFLOW_PLUGINS_TOKEN` secret (a classic token with `public_repo`). The index shows `fyflow.name`,
+`fyflow.icon`, `description` and `homepage`. CI's `pack` job checks every push packs the same way.
+
+1. Set the version in `package.json` and in `src/plugin.ts` (they must agree), and commit.
+2. Check it packs and installs: `pnpm build`, then `npx -p fyflow-plugin-sdk@^0.10.0 fyflow-plugin pack --out <dir>`
+   in `dist/anidb`, and upload the tarball on a Host's Plugins page (`FYFLOW_PLUGINS_INSTALL=any`).
+3. `git tag fyflow-ext.anidb@<version> && git push origin fyflow-ext.anidb@<version>`, and watch the PR the run's
+   summary links: `gh pr checks <url> --repo fyflow/fyflow-plugins --watch`.
+
+A published version never changes: to fix one, release the next.
 
 ## Install
 

@@ -30,7 +30,7 @@ const moduleExtension = import.meta.url.endsWith(".ts") ? "ts" : "js";
 const SESSION_POOL = { maxThreads: 1, maxConcurrentTasks: 100 };
 
 export default definePlugin({
-  id: "anidb",
+  id: "fyflow-ext.anidb",
   version: "0.0.4",
   base: import.meta.url,
   // The Cache and the Circuit breaker's block are kept in the Host's data directory for this Plugin (ADR-0004).
