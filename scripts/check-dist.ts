@@ -16,7 +16,9 @@ for (const file of await readdir(PLUGIN_FOLDER, { recursive: true })) {
     problems.push(`TypeScript in the Plugin folder: ${file}`);
 }
 
-const { default: plugin } = await import("fyflow-plugin-anidb");
+// The package by its own name, as a Host resolves it: built by `pnpm build`, so not there for a typecheck before it.
+const entry: string = "fyflow-plugin-anidb";
+const { default: plugin } = await import(entry);
 if (typeof plugin?.id !== "string" || typeof plugin.base !== "string")
   problems.push("The entry is not a Plugin");
 else if (!fileURLToPath(plugin.base).startsWith(PLUGIN_FOLDER))
