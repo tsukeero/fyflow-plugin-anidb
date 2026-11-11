@@ -4,7 +4,6 @@ A [fyflow-app](https://www.npmjs.com/package/fyflow-plugin-sdk) Plugin for [AniD
 [anidb-udp-client](https://www.npmjs.com/package/anidb-udp-client).
 
 Its Plugin id is `fyflow-ext.anidb`: Flows record it, and the Host keeps its data under `plugin-data/fyflow-ext.anidb/`.
-(Builds before the first release used `anidb`: a Flow saved with one names a Plugin that no longer exists.)
 
 A Flow typically hashes a file, identifies it, then adds it to MyList: AniDBHashFile → AniDBIdentifyFile →
 AniDBMyListAdd, each Node's result being the next one's input.
@@ -50,10 +49,13 @@ A published version never changes: to fix one, release the next.
 
 ## Install
 
-Run `npm run build` and pick `dist/anidb` with **Choose folder…** on the app's Plugins page. The folder holds what a Host
-loads and nothing else: the compiled JavaScript, a package.json, and the Plugin's dependencies (`anidb-udp-client`,
-`hash-wasm` and theirs) copied as files into its own `node_modules`, because the app's installer copies a folder
-whole, runs no package manager and refuses a link. The Host provides the SDK.
+In the app, install **AniDB** from **Browse** on the Plugins page: it is in the official Plugin repository, and the
+Host installs its dependencies with npm. The Host provides the SDK.
+
+To try a build of your own, run `npm run build` and pick `dist/anidb` with **Choose folder…**. The folder holds the
+compiled JavaScript, a package.json, and the Plugin's dependencies (`anidb-udp-client`, `hash-wasm` and theirs) copied
+as files into its own `node_modules`, since the app refuses a folder holding a link. Or pack it as in
+[Release](#release) and upload the tarball.
 
 On a server Host you can instead copy the folder into the Plugin directory, with `fyflow-plugin-sdk` installed there
 (`npm install fyflow-plugin-sdk` in the Plugin directory), then Reload.
