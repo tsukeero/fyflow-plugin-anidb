@@ -1,6 +1,6 @@
-# Releases the Plugin into the official fyflow Plugin repository on a tag `<id>@<version>` (fyflow-ext.anidb@0.0.4):
+# Releases the Plugin for the official fyflow Plugin repository on a tag `<id>@<version>` (fyflow-ext.anidb@0.0.4):
 # fyflow-plugins' reusable workflow builds it (`fyflow.build` in package.json), packs `fyflow.pack`, makes a GitHub
-# Release with the tarball, and opens the PR adding the version to fyflow/fyflow-plugins.
+# Release with the tarball. With no FYFLOW_PLUGINS_TOKEN secret it stops there: the README says how the PR is opened.
 name: Release
 on:
   push:

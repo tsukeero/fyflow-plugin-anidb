@@ -33,17 +33,38 @@ leaves it out), and no development tools. So the versions tested are the version
 ## Release
 
 The Plugin is released into the official fyflow Plugin repository,
-[fyflow/fyflow-plugins](https://github.com/fyflow/fyflow-plugins), by `.github/workflows/release.yml`, which calls its
-reusable workflow on a tag `<id>@<version>`. That workflow builds the Plugin (`fyflow.build` in package.json), packs
-`dist/anidb` (`fyflow.pack`), creates a GitHub Release with the tarball, and opens the PR adding the version to the
-index, using the `FYFLOW_PLUGINS_TOKEN` secret (a classic token with `public_repo`). The index shows `fyflow.name`,
+[fyflow/fyflow-plugins](https://github.com/fyflow/fyflow-plugins). On a tag `<id>@<version>`,
+`.github/workflows/release.yml` calls its reusable workflow, which builds the Plugin (`fyflow.build` in package.json),
+packs `dist/anidb` (`fyflow.pack`) and creates a GitHub Release with the tarball. The index shows `fyflow.name`,
 `fyflow.icon`, `description` and `homepage`. CI's `pack` job checks every push packs the same way.
+
+The repository has no `FYFLOW_PLUGINS_TOKEN` secret, so the workflow stops after the Release, and the PR adding the
+version to the index is opened by hand, from the run's own artifacts, so it holds exactly what the workflow would have
+sent.
 
 1. Set the version in `package.json` and in `src/plugin.ts` (they must agree), and commit.
 2. Check it packs and installs: `npm run build`, then `npx -p fyflow-plugin-sdk@^0.10.0 fyflow-plugin pack --out <dir>`
    in `dist/anidb`, and upload the tarball on a Host's Plugins page (`FYFLOW_PLUGINS_INSTALL=any`).
-3. `git tag fyflow-ext.anidb@<version> && git push origin fyflow-ext.anidb@<version>`, and watch the PR the run's
-   summary links: `gh pr checks <url> --repo fyflow/fyflow-plugins --watch`.
+3. Tag and push: `git tag fyflow-ext.anidb@<version> && git push origin fyflow-ext.anidb@<version>`. Wait for the
+   Release run to pass: `gh run watch <run> --repo tsukeero/fyflow-plugin-anidb`.
+4. Open the PR, with `gh` signed in as an account that may fork `fyflow/fyflow-plugins` (in a temporary folder):
+
+   ```sh
+   TAG=fyflow-ext.anidb@<version>
+   gh run download <run> --repo tsukeero/fyflow-plugin-anidb --pattern 'pack-*' --dir dist   # the tarball and its entry
+   git clone --depth 1 --branch v1 https://github.com/fyflow/fyflow-plugins tools
+   npm ci --ignore-scripts --prefix tools
+   node tools/scripts/release/cli.ts merge --dist dist/pack-0 --repo tsukeero/fyflow-plugin-anidb --out release.json
+   gh repo fork fyflow/fyflow-plugins --clone=false --default-branch-only
+   git clone --depth 1 https://github.com/fyflow/fyflow-plugins index
+   node tools/scripts/release/cli.ts apply --release release.json --index index   # writes plugins/<id>.json
+   cd index && git checkout -b "release/$TAG" && git add plugins && git commit -m "$TAG"
+   git push "https://github.com/<account>/fyflow-plugins.git" "HEAD:refs/heads/release/$TAG"
+   gh pr create --repo fyflow/fyflow-plugins --base main --head "<account>:release/$TAG" --title "Add fyflow-ext.anidb ($TAG)"      --body "Release: https://github.com/tsukeero/fyflow-plugin-anidb/releases/tag/$(node -p 'encodeURIComponent(process.argv[1])' "$TAG")"
+   ```
+
+   For a later version, the title is just `$TAG`. Then watch its checks: `gh pr checks <url> --repo
+   fyflow/fyflow-plugins --watch`. Its **admit** check must pass, and a maintainer merges it.
 
 A published version never changes: to fix one, release the next.
 
