@@ -41,24 +41,29 @@ describe("the Plugin", () => {
     expect(anime?.description).toEqual(expect.any(String));
 
     const worker = plugin.workers?.[anime?.worker ?? ""];
-    const module = await import(new URL(worker?.url ?? "", plugin.base).href);
+    const module = await import(
+      new URL(worker !== undefined && "url" in worker ? worker.url : "", plugin.base).href
+    );
     expect(module.default).toBe(Anime);
   });
 
-  it("grants Roots on the Profile only, per Task", () => {
-    expect(property("roots")).toMatchObject({ type: "array", items: { type: "string" } });
-    expect(plugin.profile?.profileOnly).toEqual(["roots"]);
-    expect(plugin.profile?.startup).not.toContain("roots");
+  it("takes the Host's Allowed roots, with no roots field of its own", () => {
+    expect(plugin.roots).toBe(true);
+    expect(property("roots")).toBeUndefined();
+    expect(plugin.profile?.profileOnly).toBeUndefined();
   });
 
-  it("contributes AniDBHashFile as a threaded Worker in the disk and cpu groups, taking the Roots", async () => {
+  it("contributes AniDBHashFile as a threaded Worker in the disk and cpu groups, taking no Profile fields", async () => {
     const hash = plugin.nodeTypes?.AniDBHashFile;
-    expect(hash).toMatchObject({ profile: ["roots"], groups: ["disk", "cpu"] });
+    expect(hash).toMatchObject({ groups: ["disk", "cpu"] });
+    expect(hash?.profile).toBeUndefined();
     expect(hash?.inline).not.toBe(true);
     expect(hash?.description).toEqual(expect.any(String));
 
     const worker = plugin.workers?.[hash?.worker ?? ""];
-    const module = await import(new URL(worker?.url ?? "", plugin.base).href);
+    const module = await import(
+      new URL(worker !== undefined && "url" in worker ? worker.url : "", plugin.base).href
+    );
     expect(module.default).toBe(HashFile);
   });
 
@@ -77,7 +82,9 @@ describe("the Plugin", () => {
         fields: { type: "array", items: { enum: expect.arrayContaining(["romanji_name", "epno"]) } },
       },
     });
-    const module = await import(new URL(worker?.url ?? "", plugin.base).href);
+    const module = await import(
+      new URL(worker !== undefined && "url" in worker ? worker.url : "", plugin.base).href
+    );
     expect(module.default).toBe(IdentifyFile);
   });
 
@@ -95,7 +102,9 @@ describe("the Plugin", () => {
     expect(nodeType?.description).toEqual(expect.any(String));
 
     const worker = plugin.workers?.[nodeType?.worker ?? ""];
-    const module = await import(new URL(worker?.url ?? "", plugin.base).href);
+    const module = await import(
+      new URL(worker !== undefined && "url" in worker ? worker.url : "", plugin.base).href
+    );
     expect(module.default).toBe(Worker);
   });
 

@@ -31,10 +31,12 @@ const SESSION_POOL = { maxThreads: 1, maxConcurrentTasks: 100 };
 
 export default definePlugin({
   id: "fyflow-ext.anidb",
-  version: "0.0.4",
+  version: "0.1.0",
   base: import.meta.url,
   // The Cache and the Circuit breaker's block are kept in the Host's data directory for this Plugin (ADR-0004).
   dataDir: true,
+  // AniDBHashFile reads files only under the Host's Allowed roots, which each Task gets as `settings.roots` (ADR-0005).
+  roots: true,
   status,
   profile: {
     schema: {
@@ -44,13 +46,10 @@ export default definePlugin({
         password: { type: "string", minLength: 1, writeOnly: true },
         // The account's UDP API Key, from its AniDB profile: with one, the Session is encrypted.
         udpApiKey: { type: "string", minLength: 1, writeOnly: true },
-        // The folders AniDBHashFile may read under (ADR-0005): a grant only a Profile may set.
-        roots: { type: "array", items: { type: "string", minLength: 1 } },
       },
       additionalProperties: false,
     },
     startup: [...SESSION_FIELDS],
-    profileOnly: ["roots"],
   },
   workers: {
     anime: {
@@ -131,7 +130,6 @@ export default definePlugin({
     },
     AniDBHashFile: {
       worker: "hashFile",
-      profile: ["roots"],
       groups: [DISK_GROUP, CPU_GROUP],
       icon: "hash",
       description: "Computes a file's ed2k hash, which AniDB identifies files by.",

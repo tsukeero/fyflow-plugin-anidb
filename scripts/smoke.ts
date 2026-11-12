@@ -131,12 +131,10 @@ async function smoke(runtime: "node" | "deno", work: string, pluginDir: string) 
     check(plugin.hasStatus === true, "the Host shows no status for the Plugin");
 
     await api(base, "PUT", "/api/profiles/default/sections/fyflow-ext.anidb", {
-      values: {
-        username: "smoke",
-        password: "smoke-secret",
-        roots: [root],
-      },
+      values: { username: "smoke", password: "smoke-secret" },
     });
+    // The folder to hash under, as a person allows it on the Profiles page: for every Plugin that takes them.
+    await api(base, "PUT", "/api/profiles/default/roots", { roots: [{ path: root, access: "read" }] });
     const profile = JSON.stringify(await api(base, "GET", "/api/profiles/default"));
     check(!profile.includes("smoke-secret"), "the Host shows the AniDB password");
     await api(base, "POST", "/api/plugins/reload");

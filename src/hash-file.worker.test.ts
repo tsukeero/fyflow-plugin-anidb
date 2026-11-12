@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
-import type { TaskEnvelope, WorkerContext } from "fyflow-plugin-sdk";
+import type { AllowedRoot, TaskEnvelope, WorkerContext } from "fyflow-plugin-sdk";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { meets, outputFindings } from "../test/output-schema.ts";
 import HashFile from "./hash-file.worker.ts";
@@ -33,8 +33,17 @@ const content = (size: number) => {
 };
 
 type Input = { path?: string };
-const task = (path: unknown, roots: unknown): TaskEnvelope<object, Input> => ({
-  settings: { profile: roots === undefined ? {} : { roots } },
+/** A Task as the Host gives it: `roots` its reach, each folder with read access unless given as an AllowedRoot. */
+const task = (
+  path: unknown,
+  roots: Array<string | AllowedRoot> | undefined,
+): TaskEnvelope<object, Input> => ({
+  settings: {
+    profile: {},
+    ...(roots !== undefined && {
+      roots: roots.map((root) => (typeof root === "string" ? { path: root, access: "read" as const } : root)),
+    }),
+  },
   input: { path } as Input,
 });
 
@@ -122,10 +131,27 @@ describe("AniDBHashFile", () => {
     expect(result).toEqual({ path, size: 1000, ed2k: "9a27d966bf4984d8597862b1c33bfbba" });
   });
 
-  it("refuses every path when the Profile grants no Roots", async () => {
-    await expect(
-      new HashFile().run(task(join(root, "1000.bin"), undefined), context().value),
-    ).rejects.toThrow("set `roots` in the anidb section of this Task's Profile");
+  it("hashes a file under an Allowed root with write access", async () => {
+    const path = join(root, "1000.bin");
+
+    const result = await new HashFile().run(task(path, [{ path: root, access: "write" }]), context().value);
+
+    expect(result).toEqual({ path, size: 1000, ed2k: "9a27d966bf4984d8597862b1c33bfbba" });
+  });
+
+  it.each([
+    ["no reach", undefined],
+    ["an empty reach", []],
+  ])("refuses every path, pointing at the Profiles page, given %s", async (_name, roots) => {
+    await expect(new HashFile().run(task(join(root, "1000.bin"), roots), context().value)).rejects.toThrow(
+      "this Profile has no Allowed roots for it yet. Add one with read access on the Profiles page",
+    );
+  });
+
+  it("refuses a missing path", async () => {
+    await expect(new HashFile().run(task(undefined, [root]), context().value)).rejects.toThrow(
+      "AniDBHashFile needs `path`",
+    );
   });
 
   it("refuses a relative path", async () => {
@@ -134,25 +160,25 @@ describe("AniDBHashFile", () => {
     );
   });
 
-  it("refuses a path outside every Root", async () => {
+  it("refuses a path outside every Allowed root", async () => {
     await expect(
       new HashFile().run(task(join(outside, "secret.bin"), [root]), context().value),
-    ).rejects.toThrow("not under any of the Roots");
+    ).rejects.toThrow("outside every Allowed root with read access");
   });
 
-  it("refuses a path escaping a Root through ..", async () => {
+  it("refuses a path escaping an Allowed root through ..", async () => {
     // Not `join`, which would resolve the `..` before the Worker sees it.
     const escaping = `${root}${sep}..${sep}elsewhere${sep}secret.bin`;
 
     await expect(new HashFile().run(task(escaping, [root]), context().value)).rejects.toThrow(
-      "not under any of the Roots",
+      "outside every Allowed root with read access",
     );
   });
 
-  it("refuses every path while a Root is not absolute", async () => {
+  it("refuses every path while an Allowed root is not absolute", async () => {
     await expect(
       new HashFile().run(task(join(root, "1000.bin"), [root, "media"]), context().value),
-    ).rejects.toThrow("The Root media is not an absolute path");
+    ).rejects.toThrow('The Allowed root "media" on this Profile is not an absolute path');
   });
 
   it.runIf(process.platform === "win32")("refuses a path relative to the current drive", async () => {
@@ -165,7 +191,7 @@ describe("AniDBHashFile", () => {
     await expect(new HashFile().run(task(root, [root]), context().value)).rejects.toThrow("is not a file");
   });
 
-  it("refuses a symlink inside a Root to a file outside it", async (test) => {
+  it("refuses a symlink inside an Allowed root to a file outside it", async (test) => {
     const link = join(root, "link.bin");
     try {
       await symlink(join(outside, "secret.bin"), link);
@@ -174,7 +200,7 @@ describe("AniDBHashFile", () => {
     }
 
     await expect(new HashFile().run(task(link, [root]), context().value)).rejects.toThrow(
-      "not under any of the Roots",
+      "outside every Allowed root with read access",
     );
   });
 });

@@ -91,12 +91,16 @@ their input with their answer added, so later Nodes still know which file or ani
 
 | Node Type | Input | Result |
 | --- | --- | --- |
-| `AniDBHashFile` | `path`: the file's absolute path, under one of the Profile's `roots` | `path`, `size` (bytes), `ed2k` |
+| `AniDBHashFile` | `path`: the file's absolute path, under an Allowed root with `read` access | `path`, `size` (bytes), `ed2k` |
 | `AniDBIdentifyFile` | `fid`, or else `ed2k` and `size` as AniDBHashFile gives them | `found`; when found, `file` (`fid`…; with `state`, also its `version`, `crc_ok`, `crc_err`, `censored`, `uncensored`), `anime` (`aid`…), `episode` (`eid`…), `group` (`gid`…) |
 | `AniDBAnime` | `aid`, or else `title` (one of its titles on AniDB) | `found`; when found, `anime` |
 | `AniDBEpisode` | `eid`, or else `aid` and `epno` (its number in the anime: `1`, or `S1` for a special, `C1` a credit, `T1` a trailer, `P1` a parody, `O1` another) | `found`; when found, `episode` |
 | `AniDBMyListGet` | `fid`, or else `ed2k` and `size` | `found`; when found, `entry` |
 | `AniDBMyListAdd` | `fid`, or else `ed2k` and `size` | `added`, and `lid` unless the file is not on AniDB (`found: false`); when the file was already in MyList, its `entry`, or `edited: true` with `edit` set |
+
+AniDBHashFile reads only under the Profile's **Allowed roots**, the folders set on the Profiles page: the Profile's
+own, which every Plugin that takes them shares, or ones for this Plugin alone, in its section. `read` access is
+enough. With none, it refuses every path, and its error says where to add one.
 
 Settings, set on the Node: `fields` on AniDBAnime and AniDBIdentifyFile chooses which fields AniDB is asked for; on
 AniDBMyListAdd, the entry's values (`state`, `viewed`, `viewdate`, `source`, `storage`, `other`), and `edit` to update

@@ -59,6 +59,6 @@ _Avoid_: store, database
 The folder the Host gives this Plugin (`plugin-data/fyflow-ext.anidb/` under the Host's data directory), where the Cache and the Circuit breaker's block live. No Profile sets it; a Worker given none keeps the Cache in memory only.
 _Avoid_: Cache directory, cacheDir, state dir
 
-**Roots**:
-The folders, a Profile-only field, under which `AniDBHashFile` may read files. A path outside every Root is refused.
-_Avoid_: allowed paths, whitelist
+**Allowed roots**:
+The folders a Profile lets a Task reach, set on fyflow-app's Profiles page (fyflow-app's term). `AniDBHashFile` reads only under one with `read` access; a path outside every one is refused.
+_Avoid_: Roots (the Profile field they replaced), allowed paths, whitelist

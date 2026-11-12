@@ -1,51 +1,27 @@
-// The `AniDBHashFile` Worker: the ed2k of a file under the Roots its Profile grants (ADR-0005). It never touches the
-// Session, so it runs threaded.
+// The `AniDBHashFile` Worker: the ed2k of a file under the Allowed roots its Task's Profile grants (ADR-0005). It never
+// touches the Session, so it runs threaded.
 import { type FileHandle, open, realpath } from "node:fs/promises";
-import { isAbsolute, relative, sep } from "node:path";
-import type { TaskEnvelope, Worker, WorkerContext } from "fyflow-plugin-sdk";
+import { allowedPath, type TaskEnvelope, type Worker, type WorkerContext } from "fyflow-plugin-sdk";
 import { createMD4, type IHasher } from "hash-wasm";
 
 /** ed2k hashes a file in chunks of this many bytes. */
 const CHUNK = 9_728_000;
 
 type Input = { path?: unknown } | null | undefined;
-type ProfileFields = { roots?: string[] };
 
-// On Windows `isAbsolute` also takes `\x`, relative to the current drive; only a drive or share path is absolute.
-const absolute = (path: string) =>
-  process.platform === "win32" ? /^([a-zA-Z]:[\\/]|[\\/]{2}[^\\/])/.test(path) : isAbsolute(path);
-
-const under = (root: string, path: string) => {
-  const rel = relative(root, path);
-  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
-};
-
-/** The real path of `path`, refused unless it is absolute and, symlinks resolved, under one of `roots`. */
-async function allowed(path: unknown, roots: string[] | undefined) {
-  if (roots === undefined || roots.length === 0)
-    throw new Error("No Roots to hash files under: set `roots` in the anidb section of this Task's Profile");
-  const relativeRoot = roots.find((root) => !absolute(root));
-  if (relativeRoot !== undefined)
-    throw new Error(`The Root ${relativeRoot} is not an absolute path: fix \`roots\` on this Task's Profile`);
-  if (typeof path !== "string" || !absolute(path))
-    throw new Error("AniDBHashFile needs `path`, an absolute path, in its input");
-  const real = await realpath(path);
-  const realRoots = await Promise.all(roots.map((root) => realpath(root).catch(() => undefined)));
-  if (!realRoots.some((root) => root !== undefined && under(root, real)))
-    throw new Error(`${path} is not under any of the Roots this Task's Profile grants`);
-  return real;
-}
-
-export default class HashFile implements Worker<object, Input, unknown, ProfileFields> {
-  async run({ settings, input }: TaskEnvelope<object, Input, ProfileFields>, context: WorkerContext) {
+export default class HashFile implements Worker<object, Input> {
+  async run({ settings, input }: TaskEnvelope<object, Input>, context: WorkerContext) {
     const path = input?.path;
-    const real = await allowed(path, settings.profile.roots);
+    if (typeof path !== "string")
+      throw new Error("AniDBHashFile needs `path`, an absolute path, in its input");
+    // Where the path really leads, refused unless an Allowed root with read access holds it, links followed.
+    const real = await allowedPath(settings.roots, path, "read");
     const file = await open(real);
     try {
       const stat = await file.stat();
       // The path may have changed between the check and the open: read only the file the check allowed.
       const now = await realpath(real);
-      if (now !== real || !stat.isFile()) throw new Error(`${path} is not a file under the Roots`);
+      if (now !== real || !stat.isFile()) throw new Error(`${path} is not a file under the Allowed roots`);
       const { size } = stat;
       const md4 = await createMD4();
       const chunk = new Uint8Array(Math.min(CHUNK, size));
