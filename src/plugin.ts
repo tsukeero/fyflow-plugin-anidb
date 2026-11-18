@@ -1,11 +1,13 @@
 // The Plugin's entry. Every Node Type talking to AniDB runs on an inline Session Worker borrowing the Host's one
-// Session (ADR-0001); hashing, which never talks to AniDB, runs threaded. The Plugin's status reports the Session.
+// Session (ADR-0001), and AniDBHTTPAnime on one sharing the Host's one HTTP API client (ADR-0006); hashing, which never
+// talks to AniDB, runs threaded. The Plugin's status reports the Session.
 import { CPU_GROUP, DISK_GROUP, definePlugin } from "fyflow-plugin-sdk";
 import { ANIME_FIELDS, FILE_FIELDS, fieldsSchema } from "./fields.ts";
 import {
   ANIME_INPUT,
   EPISODE_INPUT,
   HASH_FILE_INPUT,
+  HTTP_ANIME_INPUT,
   IDENTIFY_FILE_INPUT,
   MYLIST_ADD_INPUT,
   MYLIST_GET_INPUT,
@@ -15,6 +17,7 @@ import {
   ANIME_OUTPUT,
   EPISODE_OUTPUT,
   HASH_FILE_OUTPUT,
+  HTTP_ANIME_OUTPUT,
   IDENTIFY_FILE_OUTPUT,
   MYLIST_ADD_OUTPUT,
   MYLIST_GET_OUTPUT,
@@ -31,7 +34,7 @@ const SESSION_POOL = { maxThreads: 1, maxConcurrentTasks: 100 };
 
 export default definePlugin({
   id: "fyflow-ext.anidb",
-  version: "0.1.0",
+  version: "0.2.0",
   base: import.meta.url,
   // The Cache and the Circuit breaker's block are kept in the Host's data directory for this Plugin (ADR-0004).
   dataDir: true,
@@ -67,6 +70,11 @@ export default definePlugin({
       url: `./hash-file.worker.${moduleExtension}`,
       inputSchema: HASH_FILE_INPUT,
       outputSchema: HASH_FILE_OUTPUT,
+    },
+    httpAnime: {
+      url: `./http-anime.worker.${moduleExtension}`,
+      inputSchema: HTTP_ANIME_INPUT,
+      outputSchema: HTTP_ANIME_OUTPUT,
     },
     identifyFile: {
       url: `./identify-file.worker.${moduleExtension}`,
@@ -127,6 +135,15 @@ export default definePlugin({
       icon: "check",
       description:
         "Adds a file to MyList, by fid or by ed2k and size, leaving an entry already there as it is unless `edit` is set.",
+    },
+    AniDBHTTPAnime: {
+      worker: "httpAnime",
+      // Inline, so every Task shares the Host's one HTTP API client and its pace (ADR-0006). It takes no account.
+      inline: true,
+      pool: SESSION_POOL,
+      icon: "search",
+      description:
+        "Gets an anime by its aid from AniDB's HTTP API: all its titles, tags, creators, characters, episodes, and related and similar anime.",
     },
     AniDBHashFile: {
       worker: "hashFile",

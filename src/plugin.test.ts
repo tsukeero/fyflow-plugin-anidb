@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import Anime from "./anime.worker.ts";
 import Episode from "./episode.worker.ts";
 import HashFile from "./hash-file.worker.ts";
+import HttpAnime from "./http-anime.worker.ts";
 import IdentifyFile from "./identify-file.worker.ts";
 import MyListAdd from "./mylist-add.worker.ts";
 import MyListGet from "./mylist-get.worker.ts";
@@ -45,6 +46,20 @@ describe("the Plugin", () => {
       new URL(worker !== undefined && "url" in worker ? worker.url : "", plugin.base).href
     );
     expect(module.default).toBe(Anime);
+  });
+
+  it("contributes AniDBHTTPAnime as an inline Worker taking no Profile fields", async () => {
+    const httpAnime = plugin.nodeTypes?.AniDBHTTPAnime;
+    expect(httpAnime).toMatchObject({ inline: true });
+    expect(httpAnime?.profile).toBeUndefined();
+    expect(httpAnime?.pool).toEqual({ maxThreads: 1, maxConcurrentTasks: 100 });
+    expect(httpAnime?.description).toEqual(expect.any(String));
+
+    const worker = plugin.workers?.[httpAnime?.worker ?? ""];
+    const module = await import(
+      new URL(worker !== undefined && "url" in worker ? worker.url : "", plugin.base).href
+    );
+    expect(module.default).toBe(HttpAnime);
   });
 
   it("takes the Host's Allowed roots, with no roots field of its own", () => {

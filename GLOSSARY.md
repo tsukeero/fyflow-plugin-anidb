@@ -30,6 +30,11 @@ _Avoid_: ban mode, cooldown
 What the Session reports about itself: state, Session account, queue length, the next send time and any Circuit breaker block. The Plugin's status shows it on the Plugin's card and to Agents.
 _Avoid_: health, status object
 
+**HTTP API client**:
+The one client of AniDB's HTTP API a Host process holds, shared by every `AniDBHTTPAnime` Task. It needs no account,
+sends one request at a time, and has a Circuit breaker of its own, apart from the Session's.
+_Avoid_: HTTP session, web client
+
 **Plugin status**:
 The Session snapshot as the Host shows it, on the Plugin's card on the Plugins page and in MCP's `list_plugins`: a level, a one-line summary, and details. Asked for every few seconds; it never connects, queues or sends.
 _Avoid_: health check, AniDBStatus

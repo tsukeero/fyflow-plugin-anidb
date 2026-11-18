@@ -120,6 +120,207 @@ export const ANIME_OUTPUT = {
   ],
 } as const;
 
+/** A title as the HTTP API gives it. */
+const httpTitle = {
+  type: "object",
+  properties: {
+    title: { type: "string" },
+    lang: {
+      type: "string",
+      description: "Its language, as AniDB's code: x-jat for romaji, en, ja and so on.",
+    },
+    type: {
+      type: "string",
+      description: "main, official, synonym, short, kana or card; none on an episode's title.",
+    },
+  },
+  required: ["title", "lang"],
+} as const;
+
+/** A rating as the HTTP API gives it: on AniDB's scale of 1 to 10, with its number of votes. */
+const httpRating = {
+  type: "object",
+  properties: { value: { type: "number" }, count: { type: "integer", minimum: 0 } },
+  required: ["value", "count"],
+} as const;
+
+/** A date as the HTTP API gives it. */
+const httpDate = (what: string) => ({ type: "string", description: `${what}, as yyyy-mm-dd.` }) as const;
+
+export const HTTP_ANIME_OUTPUT = {
+  type: "object",
+  description:
+    "The input, with `found`; when found, the anime as AniDB's HTTP API describes it, in anidb-udp-client's shape: its titles, ratings, tags, creators, characters, episodes, and related and similar anime.",
+  properties: {
+    found,
+    anime: {
+      type: "object",
+      description: "The anime.",
+      properties: {
+        aid: id("The anime's AniDB id."),
+        restricted: { type: "boolean", description: "Whether AniDB marks it 18+." },
+        type: { type: "string", description: "TV Series, OVA, Movie, Web and so on." },
+        episode_count: { type: "integer", minimum: 0, description: "How many regular episodes it has." },
+        start_date: httpDate("When it started"),
+        end_date: httpDate("When it ended"),
+        titles: { type: "array", items: httpTitle },
+        description: { type: "string" },
+        url: { type: "string", description: "Its official website." },
+        picture: { type: "string", description: "Its picture's file name on AniDB's image server." },
+        ratings: {
+          type: "object",
+          properties: {
+            permanent: httpRating,
+            mean: { ...httpRating, description: "The mean of all votes, which AniDB calls temporary." },
+            review: httpRating,
+          },
+        },
+        tags: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: id("The tag's AniDB id."),
+              name: { type: "string" },
+              weight: { type: "integer", minimum: 0, description: "How much it applies, 0 to 600." },
+              local_spoiler: { type: "boolean" },
+              global_spoiler: { type: "boolean" },
+            },
+            required: ["id", "name"],
+          },
+        },
+        creators: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: id("The creator's AniDB id."),
+              name: { type: "string" },
+              type: {
+                type: "string",
+                description: "Their part: Direction, Music, Animation Work and so on.",
+              },
+            },
+            required: ["id", "name", "type"],
+          },
+        },
+        episodes: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: id("The episode's AniDB id."),
+              epno: {
+                type: "object",
+                properties: {
+                  type: {
+                    type: "integer",
+                    minimum: 1,
+                    maximum: 6,
+                    description: "1 regular, 2 special, 3 credit, 4 trailer, 5 parody, 6 other.",
+                  },
+                  value: { type: "string", description: "Its number: 1, or S1 for a special, and so on." },
+                },
+                required: ["type", "value"],
+              },
+              length: { type: "integer", minimum: 0, description: "Its length in minutes." },
+              air_date: httpDate("When it first aired"),
+              titles: { type: "array", items: httpTitle },
+            },
+            required: ["id", "epno"],
+          },
+        },
+        related_anime: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              aid: id("The related anime's AniDB id."),
+              type: { type: "string" },
+              title: { type: "string" },
+            },
+            required: ["aid"],
+          },
+        },
+        similar_anime: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { aid: id("The similar anime's AniDB id."), title: { type: "string" } },
+            required: ["aid"],
+          },
+        },
+        characters: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: id("The character's AniDB id."),
+              name: { type: "string" },
+              type: { type: "string" },
+            },
+            required: ["id", "name"],
+          },
+        },
+      },
+      required: ["aid"],
+    },
+  },
+  required: ["found"],
+  examples: [
+    {
+      aid: 6107,
+      found: true,
+      anime: {
+        aid: 6107,
+        restricted: false,
+        type: "TV Series",
+        episode_count: 64,
+        start_date: "2009-04-05",
+        end_date: "2010-07-04",
+        titles: [
+          { title: "Hagane no Renkinjutsushi (2009)", lang: "x-jat", type: "main" },
+          { title: "Fullmetal Alchemist: Brotherhood", lang: "en", type: "official" },
+        ],
+        related_anime: [{ aid: 4100, type: "Alternative Version", title: "Hagane no Renkinjutsushi" }],
+        similar_anime: [],
+        recommendations: [],
+        creators: [{ id: 1450, name: "Irie Yasuhiro", type: "Direction" }],
+        ratings: {
+          permanent: { value: 9.55, count: 14027 },
+          mean: { value: 8.95, count: 14329 },
+          review: { value: 8.99, count: 12 },
+        },
+        resources: [],
+        tags: [
+          {
+            id: 36,
+            name: "military",
+            weight: 600,
+            local_spoiler: false,
+            global_spoiler: false,
+            verified: true,
+            infobox: false,
+          },
+        ],
+        characters: [],
+        episodes: [
+          {
+            id: 98463,
+            epno: { type: 1, value: "1" },
+            length: 25,
+            air_date: "2009-04-05",
+            recap: false,
+            titles: [{ title: "Fullmetal Alchemist", lang: "en" }],
+            resources: [],
+          },
+        ],
+      },
+    },
+    { aid: 999999, found: false },
+  ],
+} as const;
+
 export const EPISODE_OUTPUT = {
   type: "object",
   description: "The input, with `found`; when found, the episode as AniDB describes it.",

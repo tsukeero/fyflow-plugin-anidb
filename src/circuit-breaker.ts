@@ -27,9 +27,9 @@ const isTimeout = (error: unknown) =>
 
 type Block = { until: number; trips: number };
 
-const readKept = (dataDir: string): Block | undefined => {
+const readKept = (dataDir: string, file: string): Block | undefined => {
   try {
-    const { until, trips } = JSON.parse(readFileSync(join(dataDir, BLOCK_FILE), "utf8"));
+    const { until, trips } = JSON.parse(readFileSync(join(dataDir, file), "utf8"));
     if (typeof until === "number" && typeof trips === "number") return { until, trips };
   } catch {}
   return undefined;
@@ -42,10 +42,20 @@ export class CircuitBreaker {
   #timeouts = 0;
   /** The Plugin's data directory, once a request or status names it: its kept block has been read, and it keeps new ones. */
   #dir: string | undefined;
+  /** The file in the data directory the block is kept in. */
+  readonly #file: string;
+  /** What the block stops, as its message names it: AniDB, or AniDB's HTTP API. */
+  readonly #what: string;
 
-  constructor(now: () => number, timeoutsToTrip: number) {
+  constructor(
+    now: () => number,
+    timeoutsToTrip: number,
+    { file = BLOCK_FILE, what = "AniDB" }: { file?: string; what?: string } = {},
+  ) {
     this.#now = now;
     this.#timeoutsToTrip = timeoutsToTrip;
+    this.#file = file;
+    this.#what = what;
   }
 
   /** Throws while blocked, after taking in any block kept in `dataDir`. */
@@ -64,7 +74,7 @@ export class CircuitBreaker {
   #takeIn(dataDir: string | undefined) {
     if (dataDir === undefined || this.#dir !== undefined) return;
     this.#dir = dataDir;
-    const kept = readKept(dataDir);
+    const kept = readKept(dataDir, this.#file);
     if (kept !== undefined && kept.until > this.#block.until) this.#block = kept;
   }
 
@@ -108,7 +118,7 @@ export class CircuitBreaker {
     if (dir === undefined) return;
     try {
       mkdirSync(dir, { recursive: true });
-      const file = join(dir, BLOCK_FILE);
+      const file = join(dir, this.#file);
       writeFileSync(`${file}.tmp`, JSON.stringify(this.#block));
       renameSync(`${file}.tmp`, file);
     } catch (error) {
@@ -119,6 +129,8 @@ export class CircuitBreaker {
   #blocked(cause?: AnidbError) {
     const until = new Date(this.#block.until).toISOString();
     const after = cause === undefined ? "" : `, after ${cause.code} ${cause.label}`;
-    return new Error(`AniDB is blocked until ${until}${after}: no AniDB Task runs until then`);
+    return new Error(
+      `${this.#what} is blocked until ${until}${after}: no ${this.#what} Task runs until then`,
+    );
   }
 }

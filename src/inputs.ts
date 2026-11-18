@@ -45,6 +45,14 @@ export const ANIME_INPUT = {
   examples: [{ aid: 1 }, { title: "Cowboy Bebop" }],
 } as const;
 
+export const HTTP_ANIME_INPUT = {
+  type: "object",
+  description: "The anime, by its `aid`.",
+  properties: { aid: id("The anime's AniDB id.") },
+  required: ["aid"],
+  examples: [{ aid: 1 }],
+} as const;
+
 export const EPISODE_INPUT = {
   type: "object",
   description: "The episode: its `eid`, or else its anime's `aid` and its number in that anime as `epno`.",
